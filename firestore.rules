@@ -1,0 +1,16 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Users collection for user profiles
+    match /users/{userId} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == userId || request.auth == null;
+    }
+    
+    // Rooms collection for active watch parties
+    match /rooms/{roomId} {
+      allow read, write: if true;
+    }
+  }
+}
