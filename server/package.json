@@ -15,6 +15,7 @@
     "socket.io": "^4.8.1"
   },
   "devDependencies": {
+    "firebase": "^13.1.0",
     "nodemon": "^3.1.9",
     "socket.io-client": "^4.8.4"
   }
