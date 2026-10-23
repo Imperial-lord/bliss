@@ -1,20 +1,39 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 
-export function useMediaStream(initialAudio = true, initialVideo = true) {
+export function useMediaStream({ enabled = false, initialAudio = true, initialVideo = true } = {}) {
   const [localStream, setLocalStream] = useState(null);
   const [isAudioEnabled, setIsAudioEnabled] = useState(initialAudio);
   const [isVideoEnabled, setIsVideoEnabled] = useState(initialVideo);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [error, setError] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
 
   // References to keep track without causing re-renders
   const streamRef = useRef(null);
   const screenTrackRef = useRef(null);
   const originalVideoTrackRef = useRef(null);
 
+  // Stop all active media tracks
+  const stopTracks = useCallback(() => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    if (screenTrackRef.current) {
+      screenTrackRef.current.stop();
+      screenTrackRef.current = null;
+    }
+    setLocalStream(null);
+    setIsScreenSharing(false);
+  }, []);
+
   // Initialize camera and microphone
   const initStream = useCallback(async () => {
+    if (!enabled) {
+      stopTracks();
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
 
@@ -36,7 +55,6 @@ export function useMediaStream(initialAudio = true, initialVideo = true) {
         });
       } catch (err) {
         console.warn('Could not acquire both audio and video, trying audio only or video only...', err);
-        // Fallback: try audio only, or video only
         try {
           stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
         } catch (audioErr) {
@@ -66,21 +84,19 @@ export function useMediaStream(initialAudio = true, initialVideo = true) {
     } finally {
       setIsLoading(false);
     }
-  }, [initialAudio, initialVideo]);
+  }, [enabled, initialAudio, initialVideo, stopTracks]);
 
   useEffect(() => {
-    initStream();
+    if (enabled) {
+      initStream();
+    } else {
+      stopTracks();
+    }
 
     return () => {
-      // Clean up tracks on unmount
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop());
-      }
-      if (screenTrackRef.current) {
-        screenTrackRef.current.stop();
-      }
+      stopTracks();
     };
-  }, [initStream]);
+  }, [enabled, initStream, stopTracks]);
 
   // Toggle Audio (Mute / Unmute)
   const toggleAudio = useCallback(() => {
@@ -140,7 +156,6 @@ export function useMediaStream(initialAudio = true, initialVideo = true) {
         const screenTrack = displayStream.getVideoTracks()[0];
         screenTrackRef.current = screenTrack;
 
-        // When user stops screen sharing via browser native UI bar
         screenTrack.onended = () => {
           if (originalVideoTrackRef.current && streamRef.current) {
             const curTrack = streamRef.current.getVideoTracks()[0];

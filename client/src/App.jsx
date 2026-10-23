@@ -34,7 +34,7 @@ export default function App() {
     }
   }, []);
 
-  // Manage local camera and audio tracks (active during lobby and call)
+  // Manage local camera and audio tracks (strictly only active during lobby and call, NEVER on landing page)
   const isMediaNeeded = currentView === 'lobby' || currentView === 'call';
   const {
     localStream,
@@ -45,7 +45,11 @@ export default function App() {
     toggleAudio,
     toggleVideo,
     toggleScreenShare
-  } = useMediaStream(true, true);
+  } = useMediaStream({
+    enabled: isMediaNeeded,
+    initialAudio: true,
+    initialVideo: true
+  });
 
   // WebRTC hook active when in call
   const {
