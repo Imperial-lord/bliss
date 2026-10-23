@@ -3,6 +3,9 @@
 @tailwind utilities;
 
 @layer base {
+  html {
+    scrollbar-gutter: stable;
+  }
   body {
     background-color: #090d16;
     color: #f1f5f9;
