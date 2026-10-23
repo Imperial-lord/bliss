@@ -209,7 +209,7 @@ export default function App() {
           onJoinWithCode={handleJoinWithCode}
         />
 
-        <HowItWorksSection onStartParty={handleStartWatchParty} />
+        <HowItWorksSection />
 
         <FeaturesSection onOpenAuth={handleOpenAuth} />
       </main>

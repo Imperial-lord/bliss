@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Play, Sparkles, Share2, Users, Video, ArrowRight, Check, Film, Radio } from 'lucide-react';
+import { Sparkles, Share2, Users, Check, Film, Radio } from 'lucide-react';
 
-export default function HowItWorksSection({ onStartParty }) {
+export default function HowItWorksSection() {
   const [copiedStep2, setCopiedStep2] = useState(false);
 
   const handleCopyDemoLink = () => {
@@ -159,18 +159,6 @@ export default function HowItWorksSection({ onStartParty }) {
               {step.interactive}
             </div>
           ))}
-        </div>
-
-        {/* Action Callout */}
-        <div className="mt-16 flex flex-col sm:flex-row items-center justify-center gap-4 text-center">
-          <button
-            onClick={onStartParty}
-            className="px-8 py-4 rounded-full bg-gradient-to-r from-[#ff7a00] to-[#ff3d2e] hover:from-[#ff9124] hover:to-[#ff5244] text-white font-bold uppercase tracking-wider text-xs flex items-center justify-center gap-2.5 shadow-glow-orange hover:-translate-y-0.5 transition-all duration-200"
-          >
-            <Play className="w-4 h-4 fill-current" />
-            <span>Launch Cinema Room Now</span>
-            <ArrowRight className="w-4 h-4" />
-          </button>
         </div>
       </div>
     </section>
