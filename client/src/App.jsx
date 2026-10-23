@@ -246,7 +246,7 @@ export default function App() {
     <div className="min-h-screen bg-[#080d10] text-[#e9e9e9] selection:bg-[#ff7a00] selection:text-white font-sans flex flex-col">
       <Navbar
         currentUser={currentUser}
-        onOpenAuth={() => handleOpenAuth('signin')}
+        onOpenAuth={(mode) => handleOpenAuth(mode)}
         onOpenProfile={() => setIsProfileModalOpen(true)}
         onSignOut={handleSignOut}
         onStartWatchParty={handleStartWatchParty}
