@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Navbar from './components/Navbar';
 import LandingHero from './components/LandingHero';
+import HowItWorksSection from './components/HowItWorksSection';
 import FeaturesSection from './components/FeaturesSection';
 import Footer from './components/Footer';
 import RoomLobby from './components/RoomLobby';
@@ -207,6 +208,8 @@ export default function App() {
           onStartParty={handleStartWatchParty}
           onJoinWithCode={handleJoinWithCode}
         />
+
+        <HowItWorksSection onStartParty={handleStartWatchParty} />
 
         <FeaturesSection onOpenAuth={handleOpenAuth} />
       </main>

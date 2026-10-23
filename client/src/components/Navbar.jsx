@@ -48,9 +48,6 @@ export default function Navbar({
           <a href="#how-it-works" className="hover:text-white transition-colors">
             How It Works
           </a>
-          <a href="#community" className="hover:text-white transition-colors">
-            Community
-          </a>
         </nav>
 
         {/* Right Action Buttons */}
