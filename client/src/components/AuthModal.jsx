@@ -82,11 +82,6 @@ export default function AuthModal({
 
         {/* Header */}
         <div className="mb-6">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#ff7a00]/10 border border-[#ff7a00]/30 text-[#ff7a00] text-[11px] font-bold uppercase tracking-wider mb-2">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Firebase Authentication</span>
-          </div>
-
           <h2 className="font-display text-2xl sm:text-3xl font-bold text-white tracking-tight">
             {mode === 'signup' ? 'Create Your Cinema Account' : 'Welcome Back'}
           </h2>
