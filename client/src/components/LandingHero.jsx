@@ -225,13 +225,15 @@ export default function LandingHero({ onStartParty, onJoinWithCode, currentUser 
                 <div className="lg:col-span-8 relative flex flex-col justify-between bg-black overflow-hidden group">
                   <div className="relative w-full h-full min-h-[320px] flex items-center justify-center">
                     <video
-                      src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
                       className="w-full h-full object-contain"
                       autoPlay
                       muted
                       loop
                       playsInline
-                    />
+                    >
+                      <source src="/videos/odyssey-trailer-clip.mp4" type="video/mp4" />
+                      <source src="/videos/odyssey-trailer-clip.webm" type="video/webm" />
+                    </video>
 
                     {/* Animated Reaction Balloon Overlay */}
                     {activeReaction && (

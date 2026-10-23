@@ -56,10 +56,10 @@ export default function MoviePlayer({ reactions = [] }) {
 
   return (
     <div className="relative w-full h-full bg-black rounded-3xl overflow-hidden border border-white/10 shadow-2xl flex flex-col justify-center items-center group font-sans">
-      {/* Sample open movie stream */}
+      {/* Odyssey Cinema Stream */}
       <video
         ref={videoRef}
-        src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
+        src="/videos/odyssey-trailer-clip.mp4"
         className="w-full h-full object-contain"
         loop
         playsInline
@@ -89,7 +89,7 @@ export default function MoviePlayer({ reactions = [] }) {
       <div className="absolute top-4 left-4 right-4 flex items-center justify-between z-10 pointer-events-none">
         <div className="flex items-center gap-2 bg-[#080d10]/85 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-white/10 text-xs font-bold text-white uppercase tracking-wider shadow">
           <Film className="w-3.5 h-3.5 text-[#ff7a00]" />
-          <span>Big Buck Bunny • Synced Cinema</span>
+          <span>The Odyssey • Synced Cinema</span>
         </div>
 
         <div className="flex items-center gap-2 pointer-events-auto">
