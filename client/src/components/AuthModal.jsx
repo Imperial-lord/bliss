@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Sparkles, Film, Check, ArrowRight, ShieldCheck, Lock, Mail, User, Heart } from 'lucide-react';
 import { AVATAR_OPTIONS, MOVIE_GENRES } from '../constants/avatars';
 import { signUpUser, signInUser } from '../services/userService';
@@ -19,6 +19,14 @@ export default function AuthModal({
   const [bio, setBio] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Always sync mode to initialMode whenever modal opens or initialMode prop changes
+  useEffect(() => {
+    if (isOpen) {
+      setMode(initialMode);
+      setError('');
+    }
+  }, [isOpen, initialMode]);
 
   if (!isOpen) return null;
 
