@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
-import { Film, Users, Wifi, ArrowLeft } from 'lucide-react';
-import VideoTile from './VideoTile';
+import React, { useState, useEffect } from 'react';
+import { Film, Users, ShieldCheck, ArrowLeft, Radio } from 'lucide-react';
 import MoviePlayer from './MoviePlayer';
+import ZoomVideoSidebar from './ZoomVideoSidebar';
 import CallControls from './CallControls';
+import { getSocket } from '../services/socket';
 
 export default function WatchPartyView({
   roomId,
@@ -20,18 +21,94 @@ export default function WatchPartyView({
   onLeaveCall
 }) {
   const [viewMode, setViewMode] = useState('cinema'); // 'cinema' or 'grid'
+  const [chatMessages, setChatMessages] = useState([]);
+  const [activeReactions, setActiveReactions] = useState([]);
 
-  const toggleViewMode = () => {
-    setViewMode((prev) => (prev === 'cinema' ? 'grid' : 'cinema'));
+  // Socket chat and reaction listeners
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket) return;
+
+    const handleReceiveChat = (msg) => {
+      setChatMessages((prev) => [...prev, msg]);
+    };
+
+    const handleReceiveReaction = (react) => {
+      setActiveReactions((prev) => [...prev, react]);
+      // Remove after 3.5 seconds
+      setTimeout(() => {
+        setActiveReactions((prev) => prev.filter((r) => r.id !== react.id));
+      }, 3500);
+    };
+
+    socket.on('receive-chat', handleReceiveChat);
+    socket.on('receive-reaction', handleReceiveReaction);
+
+    return () => {
+      socket.off('receive-chat', handleReceiveChat);
+      socket.off('receive-reaction', handleReceiveReaction);
+    };
+  }, []);
+
+  const handleSendMessage = (text) => {
+    const socket = getSocket();
+    if (socket && socket.connected) {
+      socket.emit('send-chat', {
+        roomId,
+        message: text,
+        senderName: userName,
+        avatarId: currentUser?.avatarId || 'cyber-rebel'
+      });
+    } else {
+      // Local fallback if offline
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          id: `local_${Date.now()}`,
+          senderName: userName,
+          message: text,
+          timestamp: Date.now()
+        }
+      ]);
+    }
   };
 
-  const totalParticipants = peers.length + 1; // peers + self
+  const handleSendReaction = (emoji) => {
+    const socket = getSocket();
+    if (socket && socket.connected) {
+      socket.emit('send-reaction', {
+        roomId,
+        emoji,
+        senderName: userName
+      });
+    }
+    // Also trigger locally immediately for feedback
+    const localReact = {
+      id: `local_react_${Date.now()}`,
+      emoji,
+      senderName: userName
+    };
+    setActiveReactions((prev) => [...prev, localReact]);
+    setTimeout(() => {
+      setActiveReactions((prev) => prev.filter((r) => r.id !== localReact.id));
+    }, 3500);
+  };
+
+  const totalParticipants = peers.length + 1;
 
   return (
-    <div className="relative min-h-screen w-full bg-[#080d10] flex flex-col overflow-hidden font-sans">
+    <div className="relative h-screen w-full bg-[#080d10] flex flex-col overflow-hidden font-sans">
       {/* Top Navigation Bar */}
-      <header className="h-16 px-6 border-b border-white/5 bg-[#12171c]/80 backdrop-blur-md flex items-center justify-between z-20 shrink-0">
+      <header className="h-16 px-6 border-b border-white/5 bg-[#12171c]/90 backdrop-blur-md flex items-center justify-between z-20 shrink-0">
         <div className="flex items-center gap-3">
+          <button
+            onClick={onLeaveCall}
+            className="p-2 rounded-xl bg-[#080d10] hover:bg-[#1b2229] border border-white/10 text-[#9aa6af] hover:text-white transition-colors"
+            title="Leave Cinema"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </button>
+
           <div className="flex items-center gap-2 font-display font-extrabold text-xl text-white tracking-tight">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-[#ff7a00] to-[#ff3d2e] flex items-center justify-center shadow-glow-orange">
               <Film className="w-4 h-4 text-white" />
@@ -69,94 +146,34 @@ export default function WatchPartyView({
         </div>
       </header>
 
-      {/* Main Content Area */}
+      {/* Main Split Stage: LHS Movie Streaming + RHS Zoom Video Call */}
       <main className="flex-1 p-4 pb-24 overflow-hidden relative">
-        {viewMode === 'cinema' ? (
-          /* Cinema View: Movie stage on left/center, Video sidebar on right */
-          <div className="w-full h-full grid grid-cols-1 lg:grid-cols-12 gap-4">
-            {/* Primary Movie Stage */}
-            <div className="lg:col-span-9 h-full flex flex-col min-h-[300px]">
-              <MoviePlayer />
-            </div>
-
-            {/* Side Call Column */}
-            <div className="lg:col-span-3 flex flex-col gap-3 overflow-y-auto pr-1 max-h-full">
-              {/* Local Video Tile */}
-              <div className="w-full shrink-0">
-                <VideoTile
-                  stream={localStream}
-                  userName={userName}
-                  avatarId={currentUser?.avatarId || 'cyber-rebel'}
-                  isLocal={true}
-                  isAudioEnabled={isAudioEnabled}
-                  isVideoEnabled={isVideoEnabled}
-                  isScreenSharing={isScreenSharing}
-                />
-              </div>
-
-              {/* Remote Peer Video Tiles */}
-              {peers.map((peer) => (
-                <div key={peer.socketId} className="w-full shrink-0">
-                  <VideoTile
-                    stream={peer.stream}
-                    userName={peer.userName}
-                    avatarId={peer.avatarId || 'star-voyager'}
-                    isLocal={false}
-                    isAudioEnabled={peer.audioEnabled}
-                    isVideoEnabled={peer.videoEnabled}
-                  />
-                </div>
-              ))}
-
-              {peers.length === 0 && (
-                <div className="p-6 rounded-3xl border border-dashed border-white/10 text-center text-xs text-[#9aa6af] bg-[#12171c]/50">
-                  <p className="font-semibold text-white">No other viewers yet</p>
-                  <p className="mt-1">Share the invite link with your circle to watch and talk together!</p>
-                </div>
-              )}
-            </div>
+        <div className="w-full h-full grid grid-cols-1 lg:grid-cols-12 gap-4">
+          {/* LHS: Movie Streaming Theater Screen */}
+          <div className="lg:col-span-8 xl:col-span-9 h-full flex flex-col min-h-[300px]">
+            <MoviePlayer reactions={activeReactions} />
           </div>
-        ) : (
-          /* Grid View: Pure Call Mesh layout */
-          <div
-            className={`w-full h-full grid gap-4 p-2 auto-rows-fr ${
-              totalParticipants === 1
-                ? 'grid-cols-1 max-w-2xl mx-auto'
-                : totalParticipants === 2
-                ? 'grid-cols-1 md:grid-cols-2 max-w-5xl mx-auto'
-                : totalParticipants <= 4
-                ? 'grid-cols-1 sm:grid-cols-2 max-w-6xl mx-auto'
-                : 'grid-cols-2 md:grid-cols-3 max-w-7xl mx-auto'
-            }`}
-          >
-            {/* Self Video */}
-            <VideoTile
-              stream={localStream}
+
+          {/* RHS: Zoom-like Video Call Panel for Multiple People */}
+          <div className="lg:col-span-4 xl:col-span-3 h-full flex flex-col min-h-[300px]">
+            <ZoomVideoSidebar
+              roomId={roomId}
               userName={userName}
-              avatarId={currentUser?.avatarId || 'cyber-rebel'}
-              isLocal={true}
+              currentUser={currentUser}
+              localStream={localStream}
               isAudioEnabled={isAudioEnabled}
               isVideoEnabled={isVideoEnabled}
               isScreenSharing={isScreenSharing}
+              peers={peers}
+              chatMessages={chatMessages}
+              onSendMessage={handleSendMessage}
+              onSendReaction={handleSendReaction}
             />
-
-            {/* Remote Videos */}
-            {peers.map((peer) => (
-              <VideoTile
-                key={peer.socketId}
-                stream={peer.stream}
-                userName={peer.userName}
-                avatarId={peer.avatarId || 'star-voyager'}
-                isLocal={false}
-                isAudioEnabled={peer.audioEnabled}
-                isVideoEnabled={peer.videoEnabled}
-              />
-            ))}
           </div>
-        )}
+        </div>
       </main>
 
-      {/* Floating Call Controls */}
+      {/* Floating Bottom Call Controls */}
       <CallControls
         isAudioEnabled={isAudioEnabled}
         isVideoEnabled={isVideoEnabled}
@@ -166,7 +183,7 @@ export default function WatchPartyView({
         onToggleAudio={onToggleAudio}
         onToggleVideo={onToggleVideo}
         onToggleScreenShare={onToggleScreenShare}
-        onToggleViewMode={toggleViewMode}
+        onToggleViewMode={() => setViewMode((prev) => (prev === 'cinema' ? 'grid' : 'cinema'))}
         onLeaveCall={onLeaveCall}
       />
     </div>

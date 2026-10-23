@@ -32,6 +32,16 @@ export default function Navbar({
 
         {/* Center Nav Links */}
         <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-[#9aa6af]">
+          <button
+            onClick={onStartWatchParty}
+            className="flex items-center gap-1.5 text-white hover:text-[#ff7a00] font-bold transition-colors"
+          >
+            <Film className="w-4 h-4 text-[#ff7a00]" />
+            <span>Watch Movie</span>
+            <span className="text-[9px] bg-[#ff7a00]/20 text-[#ff7a00] border border-[#ff7a00]/40 px-1.5 py-0.5 rounded-full uppercase tracking-wider font-extrabold">
+              Live
+            </span>
+          </button>
           <a href="#features" className="hover:text-white transition-colors">
             Experience
           </a>
