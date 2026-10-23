@@ -136,150 +136,155 @@ export default function AuthModal({
 
         <form onSubmit={handleSubmit}>
           {mode === 'signup' ? (
-            /* WIDE TWO-COLUMN SIGN-UP FORM */
+            /* WIDE TWO-COLUMN SIGN-UP FORM WITH BALANCED TILES */
             <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
                 {/* Column 1: Persona & Identity */}
-                <div className="space-y-4 bg-[#080d10]/40 p-4 sm:p-5 rounded-2xl border border-white/5">
-                  <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#ff7a00]">
+                <div className="h-full flex flex-col bg-[#080d10]/40 p-4 sm:p-5 rounded-2xl border border-white/5">
+                  <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#ff7a00] mb-4">
                     <Sparkles className="w-3.5 h-3.5" />
                     <span>Persona & Identity</span>
                   </div>
 
-                  {/* Choose Persona Avatar */}
-                  <div>
-                    <label className="block text-[11px] font-bold uppercase tracking-wider text-[#9aa6af] mb-2">
-                      Choose Cinema Avatar
-                    </label>
-                    <div className="grid grid-cols-3 gap-2">
-                      {AVATAR_OPTIONS.map((avatar) => {
-                        const isSelected = selectedAvatar === avatar.id;
-                        return (
-                          <button
-                            type="button"
-                            key={avatar.id}
-                            onClick={() => setSelectedAvatar(avatar.id)}
-                            className={`relative flex flex-col items-center justify-center p-2 rounded-2xl border transition-all duration-150 ${
-                              isSelected
-                                ? 'bg-[#1b2229] border-[#ff7a00] scale-105 shadow-glow-orange'
-                                : 'bg-[#080d10] border-white/5 hover:border-white/20 opacity-70 hover:opacity-100'
-                            }`}
-                          >
-                            <div
-                              className={`w-9 h-9 rounded-full ${avatar.bg} flex items-center justify-center text-base shadow-md`}
+                  <div className="flex-1 flex flex-col justify-between space-y-3.5">
+                    {/* Choose Persona Avatar */}
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-[#9aa6af] mb-2">
+                        Choose Cinema Avatar
+                      </label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {AVATAR_OPTIONS.map((avatar) => {
+                          const isSelected = selectedAvatar === avatar.id;
+                          return (
+                            <button
+                              type="button"
+                              key={avatar.id}
+                              onClick={() => setSelectedAvatar(avatar.id)}
+                              className={`relative flex flex-col items-center justify-center p-2 rounded-2xl border transition-all duration-150 ${
+                                isSelected
+                                  ? 'bg-[#1b2229] border-[#ff7a00] scale-105 shadow-glow-orange'
+                                  : 'bg-[#080d10] border-white/5 hover:border-white/20 opacity-70 hover:opacity-100'
+                              }`}
                             >
-                              {avatar.emoji}
-                            </div>
-                            <span className="text-[10px] font-medium text-white mt-1 truncate max-w-[50px]">
-                              {avatar.name.split(' ')[0]}
-                            </span>
-                            {isSelected && (
-                              <div className="absolute -top-1 -right-1 w-4 h-4 bg-[#ff7a00] rounded-full flex items-center justify-center text-white">
-                                <Check className="w-2.5 h-2.5 stroke-[3]" />
+                              <div
+                                className={`w-9 h-9 rounded-full ${avatar.bg} flex items-center justify-center text-base shadow-md`}
+                              >
+                                {avatar.emoji}
                               </div>
-                            )}
-                          </button>
-                        );
-                      })}
+                              <span className="text-[10px] font-medium text-white mt-1 truncate max-w-[50px]">
+                                {avatar.name.split(' ')[0]}
+                              </span>
+                              {isSelected && (
+                                <div className="absolute -top-1 -right-1 w-4 h-4 bg-[#ff7a00] rounded-full flex items-center justify-center text-white">
+                                  <Check className="w-2.5 h-2.5 stroke-[3]" />
+                                </div>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Display Name */}
-                  <div>
-                    <label className="block text-[11px] font-bold uppercase tracking-wider text-[#9aa6af] mb-1.5 flex items-center gap-1.5">
-                      <User className="w-3 h-3 text-[#ff7a00]" />
-                      <span>Display Name *</span>
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={displayName}
-                      onChange={(e) => setDisplayName(e.target.value)}
-                      placeholder="e.g. Captain Cinephile"
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-[#080d10] border border-white/10 text-white placeholder-[#9aa6af]/50 focus:outline-none focus:border-[#ff7a00] transition-colors text-sm font-sans"
-                    />
-                  </div>
+                    {/* Display Name */}
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-[#9aa6af] mb-1.5 flex items-center gap-1.5">
+                        <User className="w-3 h-3 text-[#ff7a00]" />
+                        <span>Display Name *</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={displayName}
+                        onChange={(e) => setDisplayName(e.target.value)}
+                        placeholder="e.g. Captain Cinephile"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-[#080d10] border border-white/10 text-white placeholder-[#9aa6af]/50 focus:outline-none focus:border-[#ff7a00] transition-colors text-sm font-sans"
+                      />
+                    </div>
 
-                  {/* Bio / Tagline */}
-                  <div>
-                    <label className="block text-[11px] font-bold uppercase tracking-wider text-[#9aa6af] mb-1.5">
-                      Tagline / Bio
-                    </label>
-                    <input
-                      type="text"
-                      value={bio}
-                      onChange={(e) => setBio(e.target.value)}
-                      placeholder="e.g. Christopher Nolan enthusiast"
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-[#080d10] border border-white/10 text-white placeholder-[#9aa6af]/50 focus:outline-none focus:border-[#ff7a00] transition-colors text-sm font-sans"
-                    />
+                    {/* Bio / Tagline */}
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-[#9aa6af] mb-1.5">
+                        Tagline / Bio
+                      </label>
+                      <input
+                        type="text"
+                        value={bio}
+                        onChange={(e) => setBio(e.target.value)}
+                        placeholder="e.g. Christopher Nolan enthusiast"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-[#080d10] border border-white/10 text-white placeholder-[#9aa6af]/50 focus:outline-none focus:border-[#ff7a00] transition-colors text-sm font-sans"
+                      />
+                    </div>
                   </div>
                 </div>
 
                 {/* Column 2: Cinema Taste & Account Credentials */}
-                <div className="space-y-4 bg-[#080d10]/40 p-4 sm:p-5 rounded-2xl border border-white/5">
-                  <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#ff7a00]">
+                <div className="h-full flex flex-col bg-[#080d10]/40 p-4 sm:p-5 rounded-2xl border border-white/5">
+                  <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#ff7a00] mb-4">
                     <Film className="w-3.5 h-3.5" />
                     <span>Taste & Credentials</span>
                   </div>
 
-                  {/* Favorite Movie Genres */}
-                  <div>
-                    <label className="block text-[11px] font-bold uppercase tracking-wider text-[#9aa6af] mb-1.5 flex items-center gap-1.5">
-                      <Heart className="w-3 h-3 text-[#ff7a00]" />
-                      <span>Favorite Genres</span>
-                    </label>
-                    <div className="flex flex-wrap gap-1.5 max-h-[105px] overflow-y-auto pr-1">
-                      {MOVIE_GENRES.map((genre) => {
-                        const isSelected = selectedGenres.includes(genre);
-                        return (
-                          <button
-                            type="button"
-                            key={genre}
-                            onClick={() => toggleGenre(genre)}
-                            className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-all ${
-                              isSelected
-                                ? 'bg-[#ff7a00]/20 text-[#ff7a00] border border-[#ff7a00]/50'
-                                : 'bg-[#080d10] text-[#9aa6af] border border-white/5 hover:border-white/20'
-                            }`}
-                          >
-                            {genre}
-                          </button>
-                        );
-                      })}
+                  <div className="flex-1 flex flex-col justify-between space-y-3.5">
+                    {/* Favorite Movie Genres - Decluttered 2-Column Grid */}
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-[#9aa6af] mb-2 flex items-center gap-1.5">
+                        <Heart className="w-3 h-3 text-[#ff7a00]" />
+                        <span>Favorite Genres</span>
+                      </label>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {MOVIE_GENRES.map((genre) => {
+                          const isSelected = selectedGenres.includes(genre);
+                          return (
+                            <button
+                              type="button"
+                              key={genre}
+                              onClick={() => toggleGenre(genre)}
+                              className={`px-2.5 py-2 rounded-xl text-[11px] font-medium transition-all text-center truncate ${
+                                isSelected
+                                  ? 'bg-[#ff7a00]/20 text-[#ff7a00] border border-[#ff7a00]/50 shadow-sm'
+                                  : 'bg-[#080d10] text-[#9aa6af] border border-white/5 hover:border-white/20 hover:text-white'
+                              }`}
+                              title={genre}
+                            >
+                              {genre}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Email */}
-                  <div>
-                    <label className="block text-[11px] font-bold uppercase tracking-wider text-[#9aa6af] mb-1.5 flex items-center gap-1.5">
-                      <Mail className="w-3 h-3 text-[#ff7a00]" />
-                      <span>Email Address *</span>
-                    </label>
-                    <input
-                      type="email"
-                      required
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="alex@domain.com"
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-[#080d10] border border-white/10 text-white placeholder-[#9aa6af]/50 focus:outline-none focus:border-[#ff7a00] transition-colors text-sm font-sans"
-                    />
-                  </div>
+                    {/* Email */}
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-[#9aa6af] mb-1.5 flex items-center gap-1.5">
+                        <Mail className="w-3 h-3 text-[#ff7a00]" />
+                        <span>Email Address *</span>
+                      </label>
+                      <input
+                        type="email"
+                        required
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="alex@domain.com"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-[#080d10] border border-white/10 text-white placeholder-[#9aa6af]/50 focus:outline-none focus:border-[#ff7a00] transition-colors text-sm font-sans"
+                      />
+                    </div>
 
-                  {/* Password */}
-                  <div>
-                    <label className="block text-[11px] font-bold uppercase tracking-wider text-[#9aa6af] mb-1.5 flex items-center gap-1.5">
-                      <Lock className="w-3 h-3 text-[#ff7a00]" />
-                      <span>Password (min. 6 chars) *</span>
-                    </label>
-                    <input
-                      type="password"
-                      required
-                      minLength={6}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="••••••••"
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-[#080d10] border border-white/10 text-white placeholder-[#9aa6af]/50 focus:outline-none focus:border-[#ff7a00] transition-colors text-sm font-sans"
-                    />
+                    {/* Password */}
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-[#9aa6af] mb-1.5 flex items-center gap-1.5">
+                        <Lock className="w-3 h-3 text-[#ff7a00]" />
+                        <span>Password (min. 6 chars) *</span>
+                      </label>
+                      <input
+                        type="password"
+                        required
+                        minLength={6}
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-[#080d10] border border-white/10 text-white placeholder-[#9aa6af]/50 focus:outline-none focus:border-[#ff7a00] transition-colors text-sm font-sans"
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
