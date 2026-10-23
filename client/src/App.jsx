@@ -6,7 +6,7 @@ import FeaturesSection from './components/FeaturesSection';
 import Footer from './components/Footer';
 import RoomLobby from './components/RoomLobby';
 import WatchPartyView from './components/WatchPartyView';
-import AuthModal from './components/AuthModal';
+import AuthPage from './components/AuthPage';
 import UserProfileModal from './components/UserProfileModal';
 import { useMediaStream } from './hooks/useMediaStream';
 import { useWebRTC } from './hooks/useWebRTC';
@@ -16,12 +16,11 @@ export default function App() {
   // Current authenticated user (verified by Firebase Auth)
   const [currentUser, setCurrentUser] = useState(() => getLocalProfile());
 
-  // Views: 'landing' | 'lobby' | 'call'
+  // Views: 'landing' | 'auth' | 'lobby' | 'call'
   const [currentView, setCurrentView] = useState('landing');
   const [roomId, setRoomId] = useState('');
 
-  // Modals & Authentication Notice
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  // Authentication State
   const [authModalMode, setAuthModalMode] = useState('signup');
   const [authModalNotice, setAuthModalNotice] = useState('');
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
@@ -48,7 +47,7 @@ export default function App() {
         setPendingAction({ type: 'join', roomId: clean });
         setAuthModalNotice(`Please sign up or log in to enter cinema room "${clean}".`);
         setAuthModalMode('signup');
-        setIsAuthModalOpen(true);
+        setCurrentView('auth');
       } else {
         setCurrentView('lobby');
       }
@@ -58,9 +57,9 @@ export default function App() {
   // Strict route protection: If unauthenticated, cannot stay in lobby or call
   useEffect(() => {
     if ((currentView === 'lobby' || currentView === 'call') && !currentUser) {
-      setCurrentView('landing');
       setAuthModalNotice('Authentication required. Please sign in to access cinema rooms.');
-      setIsAuthModalOpen(true);
+      setAuthModalMode('signin');
+      setCurrentView('auth');
     }
   }, [currentView, currentUser]);
 
@@ -96,7 +95,7 @@ export default function App() {
   const handleOpenAuth = (mode = 'signup', notice = '') => {
     setAuthModalNotice(notice);
     setAuthModalMode(mode);
-    setIsAuthModalOpen(true);
+    setCurrentView('auth');
   };
 
   const proceedToHost = useCallback(() => {
@@ -134,6 +133,8 @@ export default function App() {
       const target = pendingAction.roomId;
       setPendingAction(null);
       proceedToJoin(target);
+    } else {
+      setCurrentView('landing');
     }
   };
 
@@ -190,6 +191,21 @@ export default function App() {
     window.history.pushState({}, '', url);
   };
 
+  // Render Full-Page Cinema Auth View
+  if (currentView === 'auth') {
+    return (
+      <AuthPage
+        initialMode={authModalMode}
+        notice={authModalNotice}
+        onAuthSuccess={handleAuthSuccess}
+        onBack={() => {
+          setPendingAction(null);
+          setCurrentView('landing');
+        }}
+      />
+    );
+  }
+
   // Render Live Cinema Call View
   if (currentView === 'call') {
     return (
@@ -212,32 +228,22 @@ export default function App() {
   // Render Room Lobby (Pre-call A/V preview)
   if (currentView === 'lobby') {
     return (
-      <>
-        <RoomLobby
-          initialRoomId={roomId}
-          currentUser={currentUser}
-          localStream={localStream}
-          isAudioEnabled={isAudioEnabled}
-          isVideoEnabled={isVideoEnabled}
-          onToggleAudio={toggleAudio}
-          onToggleVideo={toggleVideo}
-          onJoinRoom={handleEnterCinemaRoom}
-          onBackToHome={() => {
-            setCurrentView('landing');
-            const url = new URL(window.location);
-            url.searchParams.delete('room');
-            window.history.pushState({}, '', url);
-          }}
-        />
-
-        <AuthModal
-          isOpen={isAuthModalOpen}
-          initialMode={authModalMode}
-          requiredNotice={authModalNotice}
-          onClose={() => setIsAuthModalOpen(false)}
-          onAuthSuccess={handleAuthSuccess}
-        />
-      </>
+      <RoomLobby
+        initialRoomId={roomId}
+        currentUser={currentUser}
+        localStream={localStream}
+        isAudioEnabled={isAudioEnabled}
+        isVideoEnabled={isVideoEnabled}
+        onToggleAudio={toggleAudio}
+        onToggleVideo={toggleVideo}
+        onJoinRoom={handleEnterCinemaRoom}
+        onBackToHome={() => {
+          setCurrentView('landing');
+          const url = new URL(window.location);
+          url.searchParams.delete('room');
+          window.history.pushState({}, '', url);
+        }}
+      />
     );
   }
 
@@ -266,15 +272,7 @@ export default function App() {
 
       <Footer />
 
-      {/* Modals */}
-      <AuthModal
-        isOpen={isAuthModalOpen}
-        initialMode={authModalMode}
-        requiredNotice={authModalNotice}
-        onClose={() => setIsAuthModalOpen(false)}
-        onAuthSuccess={handleAuthSuccess}
-      />
-
+      {/* User Profile Customization Modal */}
       <UserProfileModal
         isOpen={isProfileModalOpen}
         onClose={() => setIsProfileModalOpen(false)}
