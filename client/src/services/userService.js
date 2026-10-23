@@ -86,6 +86,59 @@ export async function saveProfileToFirestore(uid, profileData) {
 }
 
 /**
+ * Update current user's profile across Firebase Auth and Firestore
+ */
+export async function updateUserProfile({ displayName, avatarId, bio, favoriteGenres }) {
+  if (!auth || !auth.currentUser) {
+    throw new Error('You must be signed in to update your profile.');
+  }
+
+  const cleanName = displayName !== undefined ? String(displayName).trim() : undefined;
+  if (cleanName !== undefined && !cleanName) {
+    throw new Error('Display name cannot be empty.');
+  }
+
+  const uid = auth.currentUser.uid;
+  const updates = {};
+
+  if (cleanName !== undefined) {
+    updates.displayName = cleanName;
+    try {
+      await updateProfile(auth.currentUser, { displayName: cleanName });
+    } catch (err) {
+      console.warn('Firebase Auth updateProfile notice:', err.message);
+    }
+  }
+
+  if (avatarId !== undefined) {
+    updates.avatarId = avatarId;
+  }
+
+  if (bio !== undefined) {
+    updates.bio = String(bio).trim();
+  }
+
+  if (favoriteGenres !== undefined) {
+    updates.favoriteGenres = Array.isArray(favoriteGenres) ? favoriteGenres : [];
+  }
+
+  // Update Firestore
+  await saveProfileToFirestore(uid, updates);
+
+  // Merge into local cache
+  const cached = getLocalProfile() || {};
+  const updated = {
+    ...cached,
+    ...updates,
+    uid,
+    email: auth.currentUser.email
+  };
+  setLocalProfile(updated);
+
+  return updated;
+}
+
+/**
  * Fetch profile from Firestore
  */
 export async function getProfileFromFirestore(uid) {

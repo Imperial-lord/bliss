@@ -280,6 +280,7 @@ export default function App() {
         onClose={() => setIsProfileModalOpen(false)}
         user={currentUser}
         onSignOut={handleSignOut}
+        onUpdateProfile={(updated) => setCurrentUser(updated)}
       />
     </div>
   );
