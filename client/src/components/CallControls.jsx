@@ -4,7 +4,6 @@ import {
   MicOff,
   Video,
   VideoOff,
-  MonitorUp,
   PhoneOff,
   Share2,
   Check,
@@ -15,12 +14,10 @@ import {
 export default function CallControls({
   isAudioEnabled,
   isVideoEnabled,
-  isScreenSharing,
   viewMode,
   roomId,
   onToggleAudio,
   onToggleVideo,
-  onToggleScreenShare,
   onToggleViewMode,
   onLeaveCall
 }) {
@@ -60,19 +57,6 @@ export default function CallControls({
         }`}
       >
         {isVideoEnabled ? <Video className="w-4 h-4 text-[#ff7a00]" /> : <VideoOff className="w-4 h-4" />}
-      </button>
-
-      {/* Screen Share */}
-      <button
-        onClick={onToggleScreenShare}
-        title={isScreenSharing ? 'Stop Screen Share' : 'Share Screen'}
-        className={`p-3 rounded-full transition-all duration-150 flex items-center justify-center ${
-          isScreenSharing
-            ? 'bg-[#ff7a00] text-white shadow-glow-orange hover:bg-[#ff9124]'
-            : 'bg-[#1b2229] text-white hover:bg-[#252e37] border border-white/10'
-        }`}
-      >
-        <MonitorUp className="w-4 h-4" />
       </button>
 
       <div className="w-[1px] h-6 bg-white/10 mx-1" />

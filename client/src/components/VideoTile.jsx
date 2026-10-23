@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { MicOff, VideoOff, User, MonitorUp } from 'lucide-react';
+import { MicOff, VideoOff, User } from 'lucide-react';
 import { AVATAR_OPTIONS } from '../constants/avatars';
 
 export default function VideoTile({
@@ -8,8 +8,7 @@ export default function VideoTile({
   avatarId = 'cyber-rebel',
   isLocal = false,
   isAudioEnabled = true,
-  isVideoEnabled = true,
-  isScreenSharing = false
+  isVideoEnabled = true
 }) {
   const videoRef = useRef(null);
   const avatarObj = AVATAR_OPTIONS.find((a) => a.id === avatarId) || AVATAR_OPTIONS[0];
@@ -30,7 +29,7 @@ export default function VideoTile({
         muted={isLocal} // Avoid audio feedback loop for self
         className={`w-full h-full object-cover transition-opacity duration-300 ${
           isVideoEnabled ? 'opacity-100' : 'opacity-0'
-        } ${isLocal && !isScreenSharing ? 'scale-x-[-1]' : ''}`}
+        } ${isLocal ? 'scale-x-[-1]' : ''}`}
       />
 
       {/* Fallback Cinema Avatar when camera is turned off */}
@@ -47,15 +46,6 @@ export default function VideoTile({
           </span>
         </div>
       )}
-
-      {/* Badges Overlay */}
-      <div className="absolute top-3 left-3 flex items-center gap-2">
-        {isScreenSharing && (
-          <span className="flex items-center gap-1 text-[10px] bg-[#ff7a00] text-white px-2 py-0.5 rounded-full font-bold uppercase tracking-wider shadow-glow-orange">
-            <MonitorUp className="w-3 h-3" /> Screen
-          </span>
-        )}
-      </div>
 
       {/* Bottom Bar inside Video Tile */}
       <div className="absolute bottom-2.5 left-3 right-3 flex items-center justify-between pointer-events-none">

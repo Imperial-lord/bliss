@@ -100,25 +100,6 @@ export function useWebRTC({ roomId, userName, avatarId, localStream, isAudioEnab
     return pc;
   }, []);
 
-  // Replace video track across all active peer connections (e.g., when screen sharing)
-  const replaceVideoTrack = useCallback(async (newTrack) => {
-    for (const [peerId, pc] of peerConnections.current.entries()) {
-      const senders = pc.getSenders();
-      const videoSender = senders.find((s) => s.track && s.track.kind === 'video');
-      if (videoSender) {
-        try {
-          await videoSender.replaceTrack(newTrack);
-          console.log(`[WebRTC] Successfully replaced video track for peer ${peerId}`);
-        } catch (err) {
-          console.error(`[WebRTC] Failed to replace video track for peer ${peerId}:`, err);
-        }
-      } else if (newTrack) {
-        // If there was no video sender yet, add the track
-        pc.addTrack(newTrack, localStreamRef.current);
-      }
-    }
-  }, []);
-
   // Main Socket & WebRTC setup
   useEffect(() => {
     if (!roomId) return;
@@ -322,7 +303,6 @@ export function useWebRTC({ roomId, userName, avatarId, localStream, isAudioEnab
   return {
     peers: Object.values(peers),
     selfPeer,
-    connectionStatus,
-    replaceVideoTrack
+    connectionStatus
   };
 }

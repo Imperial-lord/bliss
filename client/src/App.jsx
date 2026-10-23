@@ -41,11 +41,9 @@ export default function App() {
     localStream,
     isAudioEnabled,
     isVideoEnabled,
-    isScreenSharing,
     error: mediaError,
     toggleAudio,
-    toggleVideo,
-    toggleScreenShare
+    toggleVideo
   } = useMediaStream({
     enabled: isMediaNeeded,
     initialAudio: true,
@@ -55,8 +53,7 @@ export default function App() {
   // WebRTC hook active when in call
   const {
     peers,
-    connectionStatus,
-    replaceVideoTrack
+    connectionStatus
   } = useWebRTC({
     roomId: currentView === 'call' ? roomId : null,
     userName: currentUser?.displayName || 'Cinephile',
@@ -132,12 +129,6 @@ export default function App() {
     window.history.pushState({}, '', url);
   };
 
-  const handleToggleScreenShare = () => {
-    toggleScreenShare((newTrack) => {
-      replaceVideoTrack(newTrack);
-    });
-  };
-
   // Render Live Cinema Call View
   if (currentView === 'call') {
     return (
@@ -148,12 +139,10 @@ export default function App() {
         localStream={localStream}
         isAudioEnabled={isAudioEnabled}
         isVideoEnabled={isVideoEnabled}
-        isScreenSharing={isScreenSharing}
         peers={peers}
         connectionStatus={connectionStatus}
         onToggleAudio={toggleAudio}
         onToggleVideo={toggleVideo}
-        onToggleScreenShare={handleToggleScreenShare}
         onLeaveCall={handleLeaveCall}
       />
     );

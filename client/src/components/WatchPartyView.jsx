@@ -12,12 +12,10 @@ export default function WatchPartyView({
   localStream,
   isAudioEnabled,
   isVideoEnabled,
-  isScreenSharing,
   peers,
   connectionStatus,
   onToggleAudio,
   onToggleVideo,
-  onToggleScreenShare,
   onLeaveCall
 }) {
   const [viewMode, setViewMode] = useState('cinema'); // 'cinema' or 'grid'
@@ -163,7 +161,6 @@ export default function WatchPartyView({
               localStream={localStream}
               isAudioEnabled={isAudioEnabled}
               isVideoEnabled={isVideoEnabled}
-              isScreenSharing={isScreenSharing}
               peers={peers}
               chatMessages={chatMessages}
               onSendMessage={handleSendMessage}
@@ -177,12 +174,10 @@ export default function WatchPartyView({
       <CallControls
         isAudioEnabled={isAudioEnabled}
         isVideoEnabled={isVideoEnabled}
-        isScreenSharing={isScreenSharing}
         viewMode={viewMode}
         roomId={roomId}
         onToggleAudio={onToggleAudio}
         onToggleVideo={onToggleVideo}
-        onToggleScreenShare={onToggleScreenShare}
         onToggleViewMode={() => setViewMode((prev) => (prev === 'cinema' ? 'grid' : 'cinema'))}
         onLeaveCall={onLeaveCall}
       />

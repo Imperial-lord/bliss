@@ -23,7 +23,6 @@ export default function ZoomVideoSidebar({
   localStream,
   isAudioEnabled,
   isVideoEnabled,
-  isScreenSharing,
   peers = [],
   chatMessages = [],
   onSendMessage,
@@ -116,7 +115,6 @@ export default function ZoomVideoSidebar({
                 isLocal={true}
                 isAudioEnabled={isAudioEnabled}
                 isVideoEnabled={isVideoEnabled}
-                isScreenSharing={isScreenSharing}
               />
               {/* Voice waveform animation indicator when audio is enabled */}
               {isAudioEnabled && (
