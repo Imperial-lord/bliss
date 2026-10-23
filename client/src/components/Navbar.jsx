@@ -42,11 +42,11 @@ export default function Navbar({
               Live
             </span>
           </button>
-          <a href="#features" className="hover:text-white transition-colors">
-            Experience
-          </a>
           <a href="#how-it-works" className="hover:text-white transition-colors">
             How It Works
+          </a>
+          <a href="#features" className="hover:text-white transition-colors">
+            Experience
           </a>
         </nav>
 
