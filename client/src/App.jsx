@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Navbar from './components/Navbar';
 import LandingHero from './components/LandingHero';
 import HowItWorksSection from './components/HowItWorksSection';
@@ -10,33 +10,62 @@ import AuthModal from './components/AuthModal';
 import UserProfileModal from './components/UserProfileModal';
 import { useMediaStream } from './hooks/useMediaStream';
 import { useWebRTC } from './hooks/useWebRTC';
-import { getLocalProfile, signOutUser } from './services/userService';
+import { getLocalProfile, signOutUser, subscribeToAuthState } from './services/userService';
 
 export default function App() {
-  // Current logged in user or null
+  // Current authenticated user (verified by Firebase Auth)
   const [currentUser, setCurrentUser] = useState(() => getLocalProfile());
 
   // Views: 'landing' | 'lobby' | 'call'
   const [currentView, setCurrentView] = useState('landing');
   const [roomId, setRoomId] = useState('');
 
-  // Modals
+  // Modals & Authentication Notice
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState('signup');
+  const [authModalNotice, setAuthModalNotice] = useState('');
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+
+  // Stored action to execute immediately once user completes authentication
+  const [pendingAction, setPendingAction] = useState(null);
+
+  // Synchronize state with Firebase Auth live listener
+  useEffect(() => {
+    const unsubscribe = subscribeToAuthState((profile) => {
+      setCurrentUser(profile);
+    });
+    return () => unsubscribe();
+  }, []);
 
   // Check URL parameters on mount
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const roomParam = params.get('room');
     if (roomParam) {
-      setRoomId(roomParam);
-      setCurrentView('lobby');
+      const clean = roomParam.trim().toLowerCase();
+      setRoomId(clean);
+      if (!currentUser) {
+        setPendingAction({ type: 'join', roomId: clean });
+        setAuthModalNotice(`Please sign up or log in to enter cinema room "${clean}".`);
+        setAuthModalMode('signup');
+        setIsAuthModalOpen(true);
+      } else {
+        setCurrentView('lobby');
+      }
     }
   }, []);
 
+  // Strict route protection: If unauthenticated, cannot stay in lobby or call
+  useEffect(() => {
+    if ((currentView === 'lobby' || currentView === 'call') && !currentUser) {
+      setCurrentView('landing');
+      setAuthModalNotice('Authentication required. Please sign in to access cinema rooms.');
+      setIsAuthModalOpen(true);
+    }
+  }, [currentView, currentUser]);
+
   // Manage local camera and audio tracks (strictly only active during lobby and call, NEVER on landing page)
-  const isMediaNeeded = currentView === 'lobby' || currentView === 'call';
+  const isMediaNeeded = (currentView === 'lobby' || currentView === 'call') && !!currentUser;
   const {
     localStream,
     isAudioEnabled,
@@ -56,6 +85,7 @@ export default function App() {
     connectionStatus
   } = useWebRTC({
     roomId: currentView === 'call' ? roomId : null,
+    userId: currentUser?.uid,
     userName: currentUser?.displayName || 'Cinephile',
     avatarId: currentUser?.avatarId || 'cyber-rebel',
     localStream,
@@ -63,22 +93,13 @@ export default function App() {
     isVideoEnabled
   });
 
-  const handleOpenAuth = (mode = 'signup') => {
+  const handleOpenAuth = (mode = 'signup', notice = '') => {
+    setAuthModalNotice(notice);
     setAuthModalMode(mode);
     setIsAuthModalOpen(true);
   };
 
-  const handleAuthSuccess = (profile) => {
-    setCurrentUser(profile);
-  };
-
-  const handleSignOut = async () => {
-    await signOutUser();
-    setCurrentUser(null);
-  };
-
-  const handleStartWatchParty = () => {
-    // Generate unique room code
+  const proceedToHost = useCallback(() => {
     const chars = 'abcdefghijkmnpqrstuvwxyz23456789';
     let code = '';
     for (let i = 0; i < 6; i++) {
@@ -91,9 +112,9 @@ export default function App() {
     const url = new URL(window.location);
     url.searchParams.set('room', formatted);
     window.history.pushState({}, '', url);
-  };
+  }, []);
 
-  const handleJoinWithCode = (code) => {
+  const proceedToJoin = useCallback((code) => {
     const clean = code.trim().toLowerCase();
     setRoomId(clean);
     setCurrentView('lobby');
@@ -101,19 +122,59 @@ export default function App() {
     const url = new URL(window.location);
     url.searchParams.set('room', clean);
     window.history.pushState({}, '', url);
+  }, []);
+
+  const handleAuthSuccess = (profile) => {
+    setCurrentUser(profile);
+    // Execute pending action if any
+    if (pendingAction?.type === 'host') {
+      setPendingAction(null);
+      proceedToHost();
+    } else if (pendingAction?.type === 'join' && pendingAction.roomId) {
+      const target = pendingAction.roomId;
+      setPendingAction(null);
+      proceedToJoin(target);
+    }
   };
 
-  const handleEnterCinemaRoom = (finalRoomId, finalDisplayName) => {
-    setRoomId(finalRoomId);
+  const handleSignOut = async () => {
+    await signOutUser();
+    setCurrentUser(null);
+    setCurrentView('landing');
+    setRoomId('');
+    const url = new URL(window.location);
+    url.searchParams.delete('room');
+    window.history.pushState({}, '', url);
+  };
+
+  // Host a watch party - strictly requires authentication
+  const handleStartWatchParty = () => {
     if (!currentUser) {
-      setCurrentUser({
-        uid: `guest_${Date.now()}`,
-        displayName: finalDisplayName,
-        avatarId: 'cyber-rebel',
-        bio: 'Cinema explorer',
-        favoriteGenres: []
-      });
+      setPendingAction({ type: 'host' });
+      handleOpenAuth('signup', 'Sign up or sign in to host a cinema watch party.');
+      return;
     }
+    proceedToHost();
+  };
+
+  // Join a room with code - strictly requires authentication
+  const handleJoinWithCode = (code) => {
+    const clean = code.trim().toLowerCase();
+    if (!currentUser) {
+      setPendingAction({ type: 'join', roomId: clean });
+      handleOpenAuth('signup', `Sign up or sign in to enter cinema room "${clean}".`);
+      return;
+    }
+    proceedToJoin(clean);
+  };
+
+  // Enter cinema room from lobby - strictly requires authentication
+  const handleEnterCinemaRoom = (finalRoomId) => {
+    if (!currentUser) {
+      handleOpenAuth('signup', 'Please sign in to enter the cinema room.');
+      return;
+    }
+    setRoomId(finalRoomId);
     setCurrentView('call');
 
     const url = new URL(window.location);
@@ -148,7 +209,7 @@ export default function App() {
     );
   }
 
-  // Render Room Lobby
+  // Render Room Lobby (Pre-call A/V preview)
   if (currentView === 'lobby') {
     return (
       <>
@@ -167,12 +228,12 @@ export default function App() {
             url.searchParams.delete('room');
             window.history.pushState({}, '', url);
           }}
-          onOpenAuth={handleOpenAuth}
         />
 
         <AuthModal
           isOpen={isAuthModalOpen}
           initialMode={authModalMode}
+          requiredNotice={authModalNotice}
           onClose={() => setIsAuthModalOpen(false)}
           onAuthSuccess={handleAuthSuccess}
         />
@@ -180,12 +241,12 @@ export default function App() {
     );
   }
 
-  // Render Bold Landing Screen (Phenomenon Studio Design)
+  // Render Landing Screen
   return (
     <div className="min-h-screen bg-[#080d10] text-[#e9e9e9] selection:bg-[#ff7a00] selection:text-white font-sans flex flex-col">
       <Navbar
         currentUser={currentUser}
-        onOpenAuth={handleOpenAuth}
+        onOpenAuth={() => handleOpenAuth('signin')}
         onOpenProfile={() => setIsProfileModalOpen(true)}
         onSignOut={handleSignOut}
         onStartWatchParty={handleStartWatchParty}
@@ -200,7 +261,7 @@ export default function App() {
 
         <HowItWorksSection />
 
-        <FeaturesSection onOpenAuth={handleOpenAuth} />
+        <FeaturesSection onOpenAuth={() => handleOpenAuth('signup')} />
       </main>
 
       <Footer />
@@ -209,6 +270,7 @@ export default function App() {
       <AuthModal
         isOpen={isAuthModalOpen}
         initialMode={authModalMode}
+        requiredNotice={authModalNotice}
         onClose={() => setIsAuthModalOpen(false)}
         onAuthSuccess={handleAuthSuccess}
       />

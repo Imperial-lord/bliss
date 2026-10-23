@@ -11,7 +11,35 @@ import { auth, db } from './firebase';
 const LOCAL_STORAGE_KEY = 'bliss_current_user_profile';
 
 /**
- * Get profile from localStorage fallback
+ * Helper to translate Firebase Auth error codes into clean user-facing messages
+ */
+export function getAuthErrorMessage(error) {
+  if (!error) return 'Authentication failed. Please try again.';
+  const code = error.code || '';
+  switch (code) {
+    case 'auth/email-already-in-use':
+      return 'An account with this email already exists. Please sign in instead.';
+    case 'auth/invalid-email':
+      return 'Please enter a valid email address.';
+    case 'auth/weak-password':
+      return 'Password is too weak. Please use at least 6 characters.';
+    case 'auth/user-not-found':
+    case 'auth/wrong-password':
+    case 'auth/invalid-credential':
+      return 'Invalid email or password. Please verify your credentials.';
+    case 'auth/too-many-requests':
+      return 'Access temporarily disabled due to many failed login attempts. Try again later.';
+    case 'auth/network-request-failed':
+      return 'Network error. Please check your internet connection.';
+    case 'auth/operation-not-allowed':
+      return 'Email/password accounts are not enabled in this Firebase project console. Please enable Email/Password provider in the Firebase Console.';
+    default:
+      return error.message || 'Authentication error. Please try again.';
+  }
+}
+
+/**
+ * Get profile from localStorage cache
  */
 export function getLocalProfile() {
   try {
@@ -23,24 +51,25 @@ export function getLocalProfile() {
 }
 
 /**
- * Save profile to localStorage fallback
+ * Save profile to localStorage cache
  */
 export function setLocalProfile(profile) {
   try {
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(profile));
+    if (profile) {
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(profile));
+    } else {
+      localStorage.removeItem(LOCAL_STORAGE_KEY);
+    }
   } catch (err) {
     console.error('Failed to store profile in localStorage', err);
   }
 }
 
 /**
- * Create or update user profile document in Firestore
+ * Save user profile document in Firestore
  */
 export async function saveProfileToFirestore(uid, profileData) {
-  if (!db) {
-    console.warn('Firestore not initialized, relying on local storage.');
-    return;
-  }
+  if (!db) return;
   try {
     const userRef = doc(db, 'users', uid);
     await setDoc(
@@ -52,7 +81,7 @@ export async function saveProfileToFirestore(uid, profileData) {
       { merge: true }
     );
   } catch (err) {
-    console.warn('Firestore write notice (falling back to local state):', err.message);
+    console.warn('Firestore write notice:', err.message);
   }
 }
 
@@ -74,84 +103,103 @@ export async function getProfileFromFirestore(uid) {
 }
 
 /**
- * Sign up a new user with Email and Password
+ * Sign up a new user strictly using Firebase Authentication
  */
 export async function signUpUser({ email, password, displayName, avatarId, bio, favoriteGenres }) {
-  let uid = `user_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-  let userEmail = email;
-
-  try {
-    if (auth) {
-      const cred = await createUserWithEmailAndPassword(auth, email, password);
-      uid = cred.user.uid;
-      userEmail = cred.user.email;
-      await updateProfile(cred.user, { displayName });
-    }
-  } catch (authErr) {
-    console.warn('Firebase Auth notice, registering local session:', authErr.message);
-    // If auth failed because of missing backend config, we still allow local registration
+  if (!auth) {
+    throw new Error('Firebase Authentication is not initialized.');
   }
 
-  const profile = {
-    uid,
-    displayName: displayName.trim(),
-    email: userEmail,
-    avatarId: avatarId || 'cyber-rebel',
-    bio: bio || '',
-    favoriteGenres: favoriteGenres || [],
-    createdAt: new Date().toISOString()
-  };
+  const cleanEmail = String(email).trim().toLowerCase();
+  const cleanPass = String(password);
+  const cleanName = String(displayName).trim();
 
-  setLocalProfile(profile);
-  await saveProfileToFirestore(uid, profile);
+  if (!cleanName) {
+    throw new Error('Display name is required.');
+  }
+  if (!cleanEmail) {
+    throw new Error('Email address is required.');
+  }
+  if (!cleanPass || cleanPass.length < 6) {
+    throw new Error('Password must be at least 6 characters.');
+  }
 
-  return profile;
+  try {
+    // 1. Create Firebase Auth user
+    const cred = await createUserWithEmailAndPassword(auth, cleanEmail, cleanPass);
+    const uid = cred.user.uid;
+
+    // 2. Update display name in Firebase Auth
+    await updateProfile(cred.user, { displayName: cleanName });
+
+    // 3. Assemble full user profile
+    const profile = {
+      uid,
+      displayName: cleanName,
+      email: cred.user.email,
+      avatarId: avatarId || 'cyber-rebel',
+      bio: bio ? String(bio).trim() : '',
+      favoriteGenres: Array.isArray(favoriteGenres) ? favoriteGenres : ['Sci-Fi & Cyberpunk'],
+      createdAt: new Date().toISOString()
+    };
+
+    // 4. Save to Firestore
+    await saveProfileToFirestore(uid, profile);
+    setLocalProfile(profile);
+
+    return profile;
+  } catch (err) {
+    console.error('Firebase signUp error:', err);
+    throw new Error(getAuthErrorMessage(err));
+  }
 }
 
 /**
- * Sign in an existing user
+ * Sign in an existing user strictly using Firebase Authentication
  */
 export async function signInUser(email, password) {
+  if (!auth) {
+    throw new Error('Firebase Authentication is not initialized.');
+  }
+
+  const cleanEmail = String(email).trim().toLowerCase();
+  const cleanPass = String(password);
+
+  if (!cleanEmail || !cleanPass) {
+    throw new Error('Both email and password are required.');
+  }
+
   try {
-    if (auth) {
-      const cred = await signInWithEmailAndPassword(auth, email, password);
-      const firestoreProfile = await getProfileFromFirestore(cred.user.uid);
-      const profile = firestoreProfile || {
-        uid: cred.user.uid,
-        displayName: cred.user.displayName || email.split('@')[0],
+    const cred = await signInWithEmailAndPassword(auth, cleanEmail, cleanPass);
+    const uid = cred.user.uid;
+
+    // Fetch existing profile from Firestore
+    let profile = await getProfileFromFirestore(uid);
+
+    if (!profile) {
+      // Create profile document if missing
+      profile = {
+        uid,
+        displayName: cred.user.displayName || cleanEmail.split('@')[0],
         email: cred.user.email,
         avatarId: 'cyber-rebel',
         bio: '',
-        favoriteGenres: []
+        favoriteGenres: ['Sci-Fi & Cyberpunk'],
+        createdAt: new Date().toISOString()
       };
-      setLocalProfile(profile);
-      return profile;
+      await saveProfileToFirestore(uid, profile);
     }
+
+    setLocalProfile(profile);
+    return profile;
   } catch (err) {
-    console.warn('Firebase sign in notice:', err.message);
+    console.error('Firebase signIn error:', err);
+    throw new Error(getAuthErrorMessage(err));
   }
-
-  // Fallback to local profile check
-  const local = getLocalProfile();
-  if (local && local.email === email) {
-    return local;
-  }
-
-  // Return generated profile if demo
-  const fallback = {
-    uid: `user_${Date.now()}`,
-    displayName: email.split('@')[0],
-    email,
-    avatarId: 'cyber-rebel',
-    bio: '',
-    favoriteGenres: ['Sci-Fi & Cyberpunk']
-  };
-  setLocalProfile(fallback);
-  return fallback;
 }
 
 /**
- * Sign out
+ * Sign out strictly from Firebase Authentication
  */
 export async function signOutUser() {
   try {
@@ -159,27 +207,37 @@ export async function signOutUser() {
       await fbSignOut(auth);
     }
   } catch (err) {
-    console.warn('Sign out notice:', err.message);
+    console.error('Firebase signOut error:', err);
+  } finally {
+    setLocalProfile(null);
   }
-  localStorage.removeItem(LOCAL_STORAGE_KEY);
 }
 
 /**
- * Quick profile creation (for instant join without password)
+ * Listen to live Firebase Auth state changes
  */
-export async function createQuickProfile({ displayName, avatarId, bio, favoriteGenres }) {
-  const uid = `guest_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-  const profile = {
-    uid,
-    displayName: displayName?.trim() || 'Movie Lover',
-    email: `${displayName.toLowerCase().replace(/\s+/g, '')}@bliss.internal`,
-    avatarId: avatarId || 'cyber-rebel',
-    bio: bio || 'Ready for cinema watch party',
-    favoriteGenres: favoriteGenres || ['Sci-Fi & Cyberpunk'],
-    createdAt: new Date().toISOString()
-  };
+export function subscribeToAuthState(callback) {
+  if (!auth) {
+    callback(getLocalProfile());
+    return () => {};
+  }
 
-  setLocalProfile(profile);
-  await saveProfileToFirestore(uid, profile);
-  return profile;
+  return onAuthStateChanged(auth, async (firebaseUser) => {
+    if (firebaseUser) {
+      const firestoreProfile = await getProfileFromFirestore(firebaseUser.uid);
+      const profile = firestoreProfile || {
+        uid: firebaseUser.uid,
+        displayName: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
+        email: firebaseUser.email,
+        avatarId: 'cyber-rebel',
+        bio: '',
+        favoriteGenres: []
+      };
+      setLocalProfile(profile);
+      callback(profile);
+    } else {
+      setLocalProfile(null);
+      callback(null);
+    }
+  });
 }

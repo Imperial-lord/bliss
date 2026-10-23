@@ -4,10 +4,14 @@ export function setupSocketEvents(io) {
   io.on('connection', (socket) => {
     console.log(`[Socket] Connected: ${socket.id}`);
 
-    // User requests to join a room
-    socket.on('join-room', ({ roomId, userName, avatarId, audioEnabled, videoEnabled }, callback) => {
+    // User requests to join a room (strictly requires authenticated userId)
+    socket.on('join-room', ({ roomId, userId, userName, avatarId, audioEnabled, videoEnabled }, callback) => {
       if (!roomId) {
         if (typeof callback === 'function') callback({ error: 'Room ID is required' });
+        return;
+      }
+      if (!userId) {
+        if (typeof callback === 'function') callback({ error: 'Authentication required. Please sign up or log in.' });
         return;
       }
 
@@ -19,6 +23,7 @@ export function setupSocketEvents(io) {
 
       // Register peer in room manager
       const peer = roomManager.joinRoom(cleanRoomId, socket.id, {
+        userId,
         userName: userName?.trim() || `User_${socket.id.substring(0, 4)}`,
         avatarId: avatarId || 'cyber-rebel',
         audioEnabled: audioEnabled ?? true,

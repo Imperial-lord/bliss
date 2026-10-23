@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { getSocket, connectSocket } from '../services/socket';
 import { RTC_CONFIG } from '../config/webrtc';
 
-export function useWebRTC({ roomId, userName, avatarId, localStream, isAudioEnabled, isVideoEnabled }) {
+export function useWebRTC({ roomId, userId, userName, avatarId, localStream, isAudioEnabled, isVideoEnabled }) {
   // Remote peers map: peerId -> { socketId, userName, avatarId, audioEnabled, videoEnabled, stream }
   const [peers, setPeers] = useState({});
   const [connectionStatus, setConnectionStatus] = useState('connecting'); // 'connecting' | 'connected' | 'disconnected'
@@ -114,6 +114,7 @@ export function useWebRTC({ roomId, userName, avatarId, localStream, isAudioEnab
         'join-room',
         {
           roomId,
+          userId,
           userName,
           avatarId: avatarId || 'cyber-rebel',
           audioEnabled: isAudioEnabled,

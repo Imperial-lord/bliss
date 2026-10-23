@@ -27,10 +27,23 @@ async function runSelfContainedTest() {
 
   const roomId = 'phenomenon-room';
 
-  // Client 1 joins with custom cinema avatar
+  // 1. Verify unauthenticated client is rejected
+  const unauthJoin = await new Promise((resolve) => {
+    client1.emit('join-room', {
+      roomId,
+      userName: 'Hacker'
+    }, resolve);
+  });
+  if (!unauthJoin.error) {
+    throw new Error('Unauthenticated user was not rejected!');
+  }
+  console.log('✓ Security check passed: Unauthenticated user rejected by server.');
+
+  // 2. Client 1 joins with authenticated userId and custom cinema avatar
   const join1 = await new Promise((resolve) => {
     client1.emit('join-room', {
       roomId,
+      userId: 'firebase_uid_alice_123',
       userName: 'Alice',
       avatarId: 'cyber-rebel',
       audioEnabled: true,
@@ -41,16 +54,17 @@ async function runSelfContainedTest() {
   if (!join1.success || join1.peers.length !== 0 || join1.self.avatarId !== 'cyber-rebel') {
     throw new Error('Client 1 join failed: ' + JSON.stringify(join1));
   }
-  console.log('✓ Client 1 (Alice) joined room with avatar "cyber-rebel".');
+  console.log('✓ Client 1 (Alice) authenticated & joined room with avatar "cyber-rebel".');
 
   const peerJoinedPromise = new Promise((resolve) => {
     client1.on('peer-joined', resolve);
   });
 
-  // Client 2 joins with another avatar
+  // 3. Client 2 joins with authenticated userId
   const join2 = await new Promise((resolve) => {
     client2.emit('join-room', {
       roomId,
+      userId: 'firebase_uid_bob_456',
       userName: 'Bob',
       avatarId: 'star-voyager',
       audioEnabled: true,
