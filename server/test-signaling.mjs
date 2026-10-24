@@ -75,17 +75,30 @@ async function runSelfContainedTest() {
   if (!join2.success || join2.peers.length !== 1 || join2.peers[0].avatarId !== 'cyber-rebel') {
     throw new Error('Client 2 join failed or did not receive avatarId: ' + JSON.stringify(join2));
   }
-  console.log('✓ Client 2 (Bob) joined room and received existing peer with avatar.');
+  // Verify private userIds are not leaked in peer responses (#10)
+  if (join2.peers[0].userId) {
+    throw new Error('Security violation: peer.userId leaked in peers list!');
+  }
+  console.log('✓ Client 2 (Bob) joined room and received existing peer with avatar (userId safely withheld).');
 
   const newcomer = await peerJoinedPromise;
   if (newcomer.avatarId !== 'star-voyager') {
     throw new Error('Newcomer avatar mismatch: ' + JSON.stringify(newcomer));
   }
-  console.log('✓ Client 1 notified of Bob with avatar "star-voyager".');
+  if (newcomer.userId) {
+    throw new Error('Security violation: peer.userId leaked in peer-joined event!');
+  }
+  console.log('✓ Client 1 notified of Bob with avatar "star-voyager" (credentials protected).');
 
   // Test Offer Signal relay
   const signalPromise = new Promise((resolve) => {
     client1.on('receive-signal', resolve);
+  });
+
+  // Verify rogue channel broadcast is blocked (#10)
+  client2.emit('signal', {
+    to: 'room:phenomenon-room',
+    signal: { type: 'offer', sdp: 'injection-attempt' }
   });
 
   client2.emit('signal', {
@@ -94,11 +107,49 @@ async function runSelfContainedTest() {
   });
 
   const offer = await signalPromise;
-  if (offer.from !== client2.id) {
+  if (offer.from !== client2.id || offer.signal.sdp !== 'fake-sdp-data') {
     throw new Error('Signal relay failed: ' + JSON.stringify(offer));
   }
-  console.log('✓ WebRTC Offer signal relayed successfully.');
+  console.log('✓ WebRTC Offer signal relayed successfully (and channel broadcast injection blocked).');
 
+  // 4. Test multi-tab takeover & host retention
+  console.log('Testing multi-tab session transfer for Alice (host)...');
+  const clientAliceTab2 = io(SERVER_URL, { transports: ['websocket'] });
+  await new Promise((resolve) => clientAliceTab2.on('connect', resolve));
+
+  const sessionTransferredPromise = new Promise((resolve) => {
+    client1.on('session-transferred', resolve);
+  });
+
+  const joinAliceTab2 = await new Promise((resolve) => {
+    clientAliceTab2.emit('join-room', {
+      roomId,
+      userId: 'firebase_uid_alice_123',
+      userName: 'Alice',
+      avatarId: 'cyber-rebel',
+      audioEnabled: true,
+      videoEnabled: true
+    }, resolve);
+  });
+
+  const transferNotice = await sessionTransferredPromise;
+  if (!transferNotice?.reason) {
+    throw new Error('Session transfer event was not delivered to Tab 1');
+  }
+  console.log('✓ Tab 1 received session-transferred notice successfully.');
+
+  if (!joinAliceTab2.isHost) {
+    throw new Error('Tab 2 did not retain host permissions!');
+  }
+  console.log('✓ Tab 2 retains host authority across tabs without demotion.');
+
+  // Tab 2 peers should only contain Bob, not old Alice Tab 1
+  if (joinAliceTab2.peers.length !== 1 || joinAliceTab2.peers[0].userName !== 'Bob') {
+    throw new Error('Tab 2 peer list includes old superseded session or incorrect peers: ' + JSON.stringify(joinAliceTab2.peers));
+  }
+  console.log('✓ Duplicate self-peer eliminated from active peer list.');
+
+  clientAliceTab2.disconnect();
   client1.disconnect();
   client2.disconnect();
   await new Promise((resolve) => server.close(resolve));

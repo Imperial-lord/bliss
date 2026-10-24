@@ -51,10 +51,19 @@ const updatedPlayback = roomManager.updatePlayback(testRoomId, 'play', 45.5);
 assert.strictEqual(updatedPlayback.isPlaying, true, 'Playback must be playing');
 assert.strictEqual(updatedPlayback.currentTime, 45.5, 'Playback time must match seek position');
 
+// Host seeks while playing - must preserve isPlaying: true (#2)
+const seekPlayback = roomManager.updatePlayback(testRoomId, 'seek', 90.0);
+assert.strictEqual(seekPlayback.isPlaying, true, 'Seek while playing must retain isPlaying: true');
+assert.strictEqual(seekPlayback.currentTime, 90.0, 'Seek position must be updated to 90s');
+
+// Late joiner / rejoiner media state must derive action: 'play' and refresh updatedAt (#1)
 const mediaState = roomManager.getMediaState(testRoomId);
 assert.strictEqual(mediaState.status, 'ready');
 assert.strictEqual(mediaState.title, 'Test Movie');
-console.log('✓ Media state and playback tracker verified');
+assert.strictEqual(mediaState.playback.action, 'play', 'getMediaState must derive action: play for active stream');
+assert(mediaState.playback.updatedAt > 0, 'updatedAt must be populated');
+assert(mediaState.playback.currentTime >= 90.0, 'currentTime must be advanced by elapsed time');
+console.log('✓ Media state and playback tracker verified (including seek preservation & late-join action)');
 
 // 4. Test Host Re-assignment on Host Leave
 const leaveResult = roomManager.leaveRoom(testRoomId, 'socket_host_1');

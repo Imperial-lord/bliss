@@ -9,6 +9,9 @@ export function useWebRTC({ roomId, userId, userName, avatarId, localStream, isA
   const [selfPeer, setSelfPeer] = useState(null);
   const [isHost, setIsHost] = useState(false);
   const [roomMedia, setRoomMedia] = useState(null);
+  const [isSessionTransferred, setIsSessionTransferred] = useState(false);
+  const [reconnectTrigger, setReconnectTrigger] = useState(0);
+  const transferredRef = useRef(false);
 
   // Map of peerId -> RTCPeerConnection
   const peerConnections = useRef(new Map());
@@ -17,6 +20,16 @@ export function useWebRTC({ roomId, userId, userName, avatarId, localStream, isA
   // Ref to current local stream for peer connections created dynamically
   const localStreamRef = useRef(localStream);
   localStreamRef.current = localStream;
+  const isAudioEnabledRef = useRef(isAudioEnabled);
+  isAudioEnabledRef.current = isAudioEnabled;
+  const isVideoEnabledRef = useRef(isVideoEnabled);
+  isVideoEnabledRef.current = isVideoEnabled;
+
+  const reconnect = useCallback(() => {
+    transferredRef.current = false;
+    setIsSessionTransferred(false);
+    setReconnectTrigger((t) => t + 1);
+  }, []);
 
   // Helper to get or initialize candidate queue
   const getQueue = (peerId) => {
@@ -41,8 +54,15 @@ export function useWebRTC({ roomId, userId, userName, avatarId, localStream, isA
 
   // Create a peer connection for a given peerId
   const createPeerConnection = useCallback((peerId, peerUserName, socket) => {
-    if (peerConnections.current.has(peerId)) {
-      return peerConnections.current.get(peerId);
+    const existingPc = peerConnections.current.get(peerId);
+    if (existingPc && existingPc.connectionState !== 'closed' && existingPc.connectionState !== 'failed') {
+      return existingPc;
+    }
+    if (existingPc) {
+      try {
+        existingPc.close();
+      } catch (_) {}
+      peerConnections.current.delete(peerId);
     }
 
     const pc = new RTCPeerConnection(RTC_CONFIG);
@@ -51,11 +71,32 @@ export function useWebRTC({ roomId, userId, userName, avatarId, localStream, isA
     // Initialize remote stream container
     const remoteStream = new MediaStream();
 
-    // Register tracks from local stream
-    if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach((track) => {
+    // Register tracks from local stream or add recvonly transceivers (#6)
+    const hasAudio = localStreamRef.current && localStreamRef.current.getAudioTracks().length > 0;
+    const hasVideo = localStreamRef.current && localStreamRef.current.getVideoTracks().length > 0;
+
+    if (hasAudio) {
+      localStreamRef.current.getAudioTracks().forEach((track) => {
         pc.addTrack(track, localStreamRef.current);
       });
+    } else {
+      try {
+        pc.addTransceiver('audio', { direction: 'recvonly' });
+      } catch (e) {
+        console.warn('Could not add audio recvonly transceiver:', e);
+      }
+    }
+
+    if (hasVideo) {
+      localStreamRef.current.getVideoTracks().forEach((track) => {
+        pc.addTrack(track, localStreamRef.current);
+      });
+    } else {
+      try {
+        pc.addTransceiver('video', { direction: 'recvonly' });
+      } catch (e) {
+        console.warn('Could not add video recvonly transceiver:', e);
+      }
     }
 
     // Handle remote tracks
@@ -91,11 +132,19 @@ export function useWebRTC({ roomId, userId, userName, avatarId, localStream, isA
       }
     };
 
-    // Connection state changes
+    // Connection state changes (#7: recovery & cleanup)
     pc.onconnectionstatechange = () => {
       console.log(`[WebRTC] Connection state with ${peerId}: ${pc.connectionState}`);
-      if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed' || pc.connectionState === 'closed') {
-        // Handled or cleanup
+      if (pc.connectionState === 'failed') {
+        console.log(`[WebRTC] Connection to ${peerId} failed, attempting ICE restart...`);
+        try {
+          pc.restartIce();
+        } catch (e) {
+          console.warn(`ICE restart failed for ${peerId}:`, e);
+        }
+      } else if (pc.connectionState === 'closed') {
+        peerConnections.current.delete(peerId);
+        candidateQueues.current.delete(peerId);
       }
     };
 
@@ -119,8 +168,8 @@ export function useWebRTC({ roomId, userId, userName, avatarId, localStream, isA
           userId,
           userName,
           avatarId: avatarId || 'cyber-rebel',
-          audioEnabled: isAudioEnabled,
-          videoEnabled: isVideoEnabled
+          audioEnabled: isAudioEnabledRef.current,
+          videoEnabled: isVideoEnabledRef.current
         },
         async (response) => {
           if (response?.error) {
@@ -135,9 +184,12 @@ export function useWebRTC({ roomId, userId, userName, avatarId, localStream, isA
             setRoomMedia(response.media);
           }
 
-          // Build peers state for existing peers
+          // Build peers state for existing peers (#9: functional merge to never wipe out live streams)
           const initialPeers = {};
           for (const peer of response.peers) {
+            // Defensive: Avoid self-peering if user has another session
+            if (peer.userId && peer.userId === userId) continue;
+
             initialPeers[peer.socketId] = {
               socketId: peer.socketId,
               userName: peer.userName,
@@ -145,8 +197,18 @@ export function useWebRTC({ roomId, userId, userName, avatarId, localStream, isA
               videoEnabled: peer.videoEnabled,
               stream: new MediaStream()
             };
+          }
 
-            // Initiate offer to each existing peer
+          // Merged functionally prior to offer loop so tracks can attach immediately
+          setPeers((prev) => ({
+            ...initialPeers,
+            ...prev
+          }));
+
+          // Initiate offer to each existing peer
+          for (const peer of response.peers) {
+            if (peer.userId && peer.userId === userId) continue;
+
             const pc = createPeerConnection(peer.socketId, peer.userName, socket);
             try {
               const offer = await pc.createOffer();
@@ -159,13 +221,14 @@ export function useWebRTC({ roomId, userId, userName, avatarId, localStream, isA
               console.error(`Error creating offer to ${peer.socketId}:`, err);
             }
           }
-
-          setPeers(initialPeers);
         }
       );
     };
 
     const handlePeerJoined = (peer) => {
+      // Defensive: Avoid self-peering
+      if (peer.userId && peer.userId === userId) return;
+
       console.log('[Room] Peer joined:', peer);
       setPeers((prev) => ({
         ...prev,
@@ -259,6 +322,29 @@ export function useWebRTC({ roomId, userId, userName, avatarId, localStream, isA
 
     const handleDisconnect = () => {
       setConnectionStatus('disconnected');
+      // Clean up stale peer connections on socket disconnection (#8)
+      for (const [peerId, pc] of peerConnections.current.entries()) {
+        try {
+          pc.close();
+        } catch (_) {}
+      }
+      peerConnections.current.clear();
+      candidateQueues.current.clear();
+      setPeers({});
+    };
+
+    const handleSessionTransferred = ({ reason }) => {
+      console.warn('[Room] Session transferred to another tab:', reason);
+      transferredRef.current = true;
+      setIsSessionTransferred(true);
+      for (const [peerId, pc] of peerConnections.current.entries()) {
+        try {
+          pc.close();
+        } catch (_) {}
+      }
+      peerConnections.current.clear();
+      candidateQueues.current.clear();
+      setPeers({});
     };
 
     // Attach listeners
@@ -278,6 +364,7 @@ export function useWebRTC({ roomId, userId, userName, avatarId, localStream, isA
     socket.on('peer-media-updated', handlePeerMediaUpdated);
     socket.on('peer-left', handlePeerLeft);
     socket.on('host-changed', handleHostChanged);
+    socket.on('session-transferred', handleSessionTransferred);
     socket.on('disconnect', handleDisconnect);
 
     return () => {
@@ -288,36 +375,43 @@ export function useWebRTC({ roomId, userId, userName, avatarId, localStream, isA
       socket.off('peer-media-updated', handlePeerMediaUpdated);
       socket.off('peer-left', handlePeerLeft);
       socket.off('host-changed', handleHostChanged);
+      socket.off('session-transferred', handleSessionTransferred);
       socket.off('disconnect', handleDisconnect);
 
-      // Leave room and close all peer connections
-      socket.emit('leave-room', { roomId });
+      // Leave room if this session wasn't transferred to another tab
+      if (!transferredRef.current) {
+        socket.emit('leave-room', { roomId });
+      }
       for (const [peerId, pc] of peerConnections.current.entries()) {
-        pc.close();
+        try {
+          pc.close();
+        } catch (_) {}
       }
       peerConnections.current.clear();
       candidateQueues.current.clear();
       setPeers({});
     };
-  }, [roomId, userName, createPeerConnection]);
+  }, [roomId, userName, createPeerConnection, reconnectTrigger]);
 
   // Sync local media mute/video toggles with signaling server
   useEffect(() => {
     const socket = getSocket();
-    if (socket && socket.connected && roomId) {
+    if (socket && socket.connected && roomId && !isSessionTransferred) {
       socket.emit('media-toggle', {
         roomId,
         audioEnabled: isAudioEnabled,
         videoEnabled: isVideoEnabled
       });
     }
-  }, [isAudioEnabled, isVideoEnabled, roomId]);
+  }, [isAudioEnabled, isVideoEnabled, roomId, isSessionTransferred]);
 
   return {
     peers: Object.values(peers),
     selfPeer,
     connectionStatus,
     isHost,
-    roomMedia
+    roomMedia,
+    isSessionTransferred,
+    reconnect
   };
 }

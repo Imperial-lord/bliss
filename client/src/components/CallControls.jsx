@@ -32,18 +32,18 @@ export default function CallControls({
   };
 
   return (
-    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 rounded-full bg-[#12171c]/90 backdrop-blur-xl border border-white/10 shadow-2xl">
+    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 rounded-full bg-white/95 dark:bg-[#12171c]/90 backdrop-blur-xl border border-slate-200/80 dark:border-white/10 shadow-2xl transition-colors duration-200">
       {/* Audio Toggle */}
       <button
         onClick={onToggleAudio}
         title={isAudioEnabled ? 'Mute Microphone' : 'Unmute Microphone'}
         className={`p-3 rounded-full transition-all duration-150 flex items-center justify-center ${
           isAudioEnabled
-            ? 'bg-[#1b2229] text-white hover:bg-[#252e37] border border-white/10'
+            ? 'bg-slate-100 text-slate-800 hover:bg-slate-200 border border-slate-200/80 dark:bg-[#1b2229] dark:text-white dark:hover:bg-[#252e37] dark:border-white/10'
             : 'bg-red-500 text-white hover:bg-red-600 shadow-lg'
         }`}
       >
-        {isAudioEnabled ? <Mic className="w-4 h-4 text-emerald-400" /> : <MicOff className="w-4 h-4" />}
+        {isAudioEnabled ? <Mic className="w-4 h-4 text-emerald-500 dark:text-emerald-400" /> : <MicOff className="w-4 h-4" />}
       </button>
 
       {/* Video Toggle */}
@@ -52,14 +52,14 @@ export default function CallControls({
         title={isVideoEnabled ? 'Turn Off Camera' : 'Turn On Camera'}
         className={`p-3 rounded-full transition-all duration-150 flex items-center justify-center ${
           isVideoEnabled
-            ? 'bg-[#1b2229] text-white hover:bg-[#252e37] border border-white/10'
+            ? 'bg-slate-100 text-slate-800 hover:bg-slate-200 border border-slate-200/80 dark:bg-[#1b2229] dark:text-white dark:hover:bg-[#252e37] dark:border-white/10'
             : 'bg-red-500 text-white hover:bg-red-600 shadow-lg'
         }`}
       >
         {isVideoEnabled ? <Video className="w-4 h-4 text-[#ff7a00]" /> : <VideoOff className="w-4 h-4" />}
       </button>
 
-      <div className="w-[1px] h-6 bg-white/10 mx-1" />
+      <div className="w-[1px] h-6 bg-slate-200 dark:bg-white/10 mx-1" />
 
       {/* View Mode Toggle (Movie Cinema vs Grid) */}
       <button
@@ -68,7 +68,7 @@ export default function CallControls({
         className={`p-3 rounded-full transition-all duration-150 flex items-center justify-center ${
           viewMode === 'cinema'
             ? 'bg-[#ff7a00]/15 text-[#ff7a00] border border-[#ff7a00]/40 shadow-glow-orange'
-            : 'bg-[#1b2229] text-white hover:bg-[#252e37] border border-white/10'
+            : 'bg-slate-100 text-slate-800 hover:bg-slate-200 border border-slate-200/80 dark:bg-[#1b2229] dark:text-white dark:hover:bg-[#252e37] dark:border-white/10'
         }`}
       >
         {viewMode === 'cinema' ? <Tv className="w-4 h-4" /> : <LayoutGrid className="w-4 h-4" />}
@@ -78,16 +78,16 @@ export default function CallControls({
       <button
         onClick={handleCopyLink}
         title="Copy Invite Link"
-        className="p-3 rounded-full bg-[#1b2229] text-white hover:bg-[#252e37] border border-white/10 transition-all duration-150 flex items-center justify-center relative"
+        className="p-3 rounded-full bg-slate-100 text-slate-800 hover:bg-slate-200 border border-slate-200/80 dark:bg-[#1b2229] dark:text-white dark:hover:bg-[#252e37] dark:border-white/10 transition-all duration-150 flex items-center justify-center relative"
       >
         {copied ? (
-          <Check className="w-4 h-4 text-emerald-400" />
+          <Check className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
         ) : (
           <Share2 className="w-4 h-4" />
         )}
       </button>
 
-      <div className="w-[1px] h-6 bg-white/10 mx-1" />
+      <div className="w-[1px] h-6 bg-slate-200 dark:bg-white/10 mx-1" />
 
       {/* Leave Call */}
       <button

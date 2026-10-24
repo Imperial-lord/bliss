@@ -34,21 +34,21 @@ export default function FeaturesSection({ onOpenAuth }) {
   ];
 
   return (
-    <section id="features" className="py-24 bg-[#080d10] border-t border-white/5 relative">
+    <section id="features" className="py-24 bg-slate-50 dark:bg-[#080d10] border-t border-slate-200/80 dark:border-white/5 relative transition-colors duration-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
         <div className="flex flex-col md:flex-row md:items-end justify-between mb-16 gap-6">
           <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#141a1f] border border-[#ff7a00]/30 text-[#ff7a00] text-[10px] font-bold uppercase tracking-widest mb-3">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white dark:bg-[#141a1f] border border-orange-500/30 dark:border-[#ff7a00]/30 text-[#ff7a00] text-[10px] font-bold uppercase tracking-widest mb-3 shadow-sm dark:shadow-none">
               <span>Engineered For Movie Lovers</span>
             </div>
-            <h2 className="font-display text-4xl sm:text-5xl font-extrabold text-white tracking-tight">
+            <h2 className="font-display text-4xl sm:text-5xl font-extrabold text-slate-900 dark:text-white tracking-tight">
               Built for seamless <br />
               <span className="text-[#ff7a00]">social viewing.</span>
             </h2>
           </div>
 
-          <p className="text-sm sm:text-base text-[#9aa6af] max-w-md font-sans">
+          <p className="text-sm sm:text-base text-slate-600 dark:text-[#9aa6af] max-w-md font-sans">
             Say goodbye to "3, 2, 1, press play" over awkward discord calls. Bliss gives you the ultimate synchronized living room experience.
           </p>
         </div>
@@ -58,14 +58,14 @@ export default function FeaturesSection({ onOpenAuth }) {
           {features.map((feat) => (
             <div
               key={feat.num}
-              className="group relative bg-[#12171c] hover:bg-[#182026] border border-white/5 hover:border-[#ff7a00]/40 rounded-3xl p-8 transition-all duration-300 hover:-translate-y-1 hover:shadow-glow-orange flex flex-col justify-between"
+              className="group relative bg-white hover:bg-slate-50 dark:bg-[#12171c] dark:hover:bg-[#182026] border border-slate-200/80 dark:border-white/5 hover:border-orange-500/40 dark:hover:border-[#ff7a00]/40 rounded-3xl p-8 transition-all duration-300 hover:-translate-y-1 shadow-sm dark:shadow-none hover:shadow-lg dark:hover:shadow-glow-orange flex flex-col justify-between"
             >
               <div>
                 <div className="flex items-center justify-between mb-6">
-                  <div className="p-3 rounded-2xl bg-[#080d10] border border-white/10 group-hover:border-[#ff7a00]/40 transition-colors">
+                  <div className="p-3 rounded-2xl bg-slate-50 dark:bg-[#080d10] border border-slate-200/80 dark:border-white/10 group-hover:border-[#ff7a00]/40 transition-colors">
                     {feat.icon}
                   </div>
-                  <span className="font-display text-3xl font-extrabold text-white/20 group-hover:text-[#ff7a00]/40 transition-colors">
+                  <span className="font-display text-3xl font-extrabold text-slate-200 dark:text-white/20 group-hover:text-[#ff7a00]/40 transition-colors">
                     {feat.num}
                   </span>
                 </div>
@@ -74,16 +74,16 @@ export default function FeaturesSection({ onOpenAuth }) {
                   {feat.tag}
                 </div>
 
-                <h3 className="font-display text-2xl font-bold text-white mb-3">
+                <h3 className="font-display text-2xl font-bold text-slate-900 dark:text-white mb-3">
                   {feat.title}
                 </h3>
 
-                <p className="text-sm text-[#9aa6af] leading-relaxed">
+                <p className="text-sm text-slate-600 dark:text-[#9aa6af] leading-relaxed">
                   {feat.desc}
                 </p>
               </div>
 
-              <div className="mt-8 pt-6 border-t border-white/5 flex items-center justify-between text-xs font-semibold text-white/50 group-hover:text-white transition-colors">
+              <div className="mt-8 pt-6 border-t border-slate-100 dark:border-white/5 flex items-center justify-between text-xs font-semibold text-slate-500 dark:text-white/50 group-hover:text-slate-900 dark:group-hover:text-white transition-colors">
                 <span>Explore Tech</span>
                 <span className="text-[#ff7a00] group-hover:translate-x-1 transition-transform">→</span>
               </div>
@@ -92,12 +92,12 @@ export default function FeaturesSection({ onOpenAuth }) {
         </div>
 
         {/* Banner CTA */}
-        <div className="mt-20 rounded-3xl bg-gradient-to-r from-[#141a1f] via-[#1b2229] to-[#141a1f] border border-white/10 p-8 sm:p-12 flex flex-col md:flex-row items-center justify-between gap-8 relative overflow-hidden">
+        <div className="mt-20 rounded-3xl bg-gradient-to-r from-orange-500/10 via-amber-500/5 to-rose-500/10 dark:from-[#141a1f] dark:via-[#1b2229] dark:to-[#141a1f] border border-orange-500/20 dark:border-white/10 p-8 sm:p-12 flex flex-col md:flex-row items-center justify-between gap-8 relative overflow-hidden shadow-sm dark:shadow-none">
           <div className="relative z-10">
-            <h3 className="font-display text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
+            <h3 className="font-display text-3xl sm:text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight">
               Ready to start your first watch party?
             </h3>
-            <p className="text-sm text-[#9aa6af] mt-2 max-w-xl">
+            <p className="text-sm text-slate-600 dark:text-[#9aa6af] mt-2 max-w-xl">
               Create a free profile in 30 seconds, pick your avatar, and get instant access to private rooms.
             </p>
           </div>

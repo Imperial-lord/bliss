@@ -18,6 +18,7 @@ class RoomManager {
 
     if (!this.roomMetadata.has(roomId)) {
       this.roomMetadata.set(roomId, {
+        hostUserId: peerData.userId,
         hostSocketId: socketId,
         media: {
           status: 'idle', // 'idle' | 'downloading_metadata' | 'ready'
@@ -36,7 +37,22 @@ class RoomManager {
 
     const room = this.rooms.get(roomId);
     const meta = this.roomMetadata.get(roomId);
-    const isHost = meta.hostSocketId === socketId;
+
+    // Check if this user already has an active socket in this room (from an older tab)
+    let supersededSocketId = null;
+    for (const [sId, p] of room.entries()) {
+      if (p.userId && p.userId === peerData.userId && sId !== socketId) {
+        supersededSocketId = sId;
+        break;
+      }
+    }
+
+    // Determine host authority by authenticated user ID or socket ID
+    const isHost = meta.hostUserId === peerData.userId || meta.hostSocketId === socketId;
+    if (isHost) {
+      meta.hostUserId = peerData.userId;
+      meta.hostSocketId = socketId;
+    }
 
     const existing = room.get(socketId) || {};
     const peer = {
@@ -48,6 +64,7 @@ class RoomManager {
       videoEnabled: peerData.videoEnabled ?? true,
       joinedAt: Date.now(),
       isHost,
+      supersededSocketId,
       ...existing,
       ...peerData
     };
@@ -87,7 +104,10 @@ class RoomManager {
 
   isHost(roomId, socketId) {
     const meta = this.roomMetadata.get(roomId);
-    return meta ? meta.hostSocketId === socketId : false;
+    if (!meta) return false;
+    if (meta.hostSocketId === socketId) return true;
+    const peer = this.getPeer(roomId, socketId);
+    return peer ? (Boolean(meta.hostUserId) && peer.userId === meta.hostUserId) : false;
   }
 
   getMediaState(roomId) {
@@ -96,12 +116,23 @@ class RoomManager {
 
     const media = { ...meta.media };
     // Compute current real-time playback timestamp if actively playing
-    if (media.playback && media.playback.isPlaying) {
-      const elapsed = (Date.now() - media.playback.updatedAt) / 1000;
-      media.playback = {
-        ...media.playback,
-        currentTime: media.playback.currentTime + elapsed
-      };
+    if (media.playback) {
+      const now = Date.now();
+      if (media.playback.isPlaying) {
+        const elapsed = Math.max(0, (now - media.playback.updatedAt) / 1000);
+        media.playback = {
+          ...media.playback,
+          action: 'play',
+          currentTime: media.playback.currentTime + elapsed,
+          updatedAt: now
+        };
+      } else {
+        media.playback = {
+          ...media.playback,
+          action: media.playback.action || 'pause',
+          updatedAt: now
+        };
+      }
     }
     return media;
   }
@@ -125,10 +156,19 @@ class RoomManager {
     const meta = this.roomMetadata.get(roomId);
     if (!meta) return null;
 
-    const isPlaying = action === 'play';
+    const currentPlayback = meta.media.playback || {};
+    let isPlaying = currentPlayback.isPlaying || false;
+    if (action === 'play') {
+      isPlaying = true;
+    } else if (action === 'pause') {
+      isPlaying = false;
+    }
+    // If action === 'seek', 'heartbeat', etc., isPlaying retains its prior state
+
     meta.media.playback = {
+      action,
       isPlaying,
-      currentTime: typeof currentTime === 'number' ? currentTime : meta.media.playback.currentTime,
+      currentTime: typeof currentTime === 'number' ? currentTime : (currentPlayback.currentTime || 0),
       updatedAt: Date.now()
     };
     return meta.media.playback;
@@ -160,13 +200,19 @@ class RoomManager {
     if (room.size === 0) {
       this.rooms.delete(roomId);
       this.roomMetadata.delete(roomId);
-    } else if (meta && meta.hostSocketId === socketId) {
-      // Reassign host authority to the next earliest joined peer
+    } else if (meta && (meta.hostSocketId === socketId || (meta.hostUserId && peer?.userId === meta.hostUserId))) {
+      // Check if there is another socket belonging to the SAME hostUserId first!
       const remaining = Array.from(room.values()).sort((a, b) => a.joinedAt - b.joinedAt);
-      if (remaining.length > 0) {
+      const sameUserSocket = remaining.find((p) => p.userId && p.userId === meta.hostUserId);
+      if (sameUserSocket) {
+        sameUserSocket.isHost = true;
+        meta.hostSocketId = sameUserSocket.socketId;
+        newHost = sameUserSocket;
+      } else if (remaining.length > 0) {
         newHost = remaining[0];
         newHost.isHost = true;
         meta.hostSocketId = newHost.socketId;
+        meta.hostUserId = newHost.userId;
       }
     }
 

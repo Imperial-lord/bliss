@@ -104,8 +104,10 @@ export function registerPlaybackHandlers(io, socket) {
     // Broadcast authoritative playback update to all peers
     socket.to(channel).emit('playback-updated', {
       action,
+      isPlaying: updated.isPlaying,
       currentTime: updated.currentTime,
-      updatedAt: updated.updatedAt
+      updatedAt: updated.updatedAt,
+      serverTime: Date.now()
     });
   });
 
@@ -120,7 +122,8 @@ export function registerPlaybackHandlers(io, socket) {
         status: media.status,
         title: media.title,
         subtitles: media.subtitles,
-        playback: media.playback
+        playback: media.playback,
+        serverTime: Date.now()
       });
     }
   });

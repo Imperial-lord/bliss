@@ -7,9 +7,25 @@ import { roomManager } from '../rooms.js';
  * @param {import('socket.io').Socket} socket
  */
 export function registerSignalingHandlers(io, socket) {
+  // Helper to verify that target is a valid socket and shares at least one room with the sender (#10)
+  const canRelayTo = (targetSocketId) => {
+    if (!targetSocketId || typeof targetSocketId !== 'string') return false;
+    // Reject channel injection (e.g. room:xyz)
+    if (targetSocketId.includes(':')) return false;
+
+    // Verify sender and target share at least one active room
+    const senderRooms = roomManager.getRoomsForSocket(socket.id);
+    if (!senderRooms || senderRooms.length === 0) return false;
+
+    const targetRooms = roomManager.getRoomsForSocket(targetSocketId);
+    if (!targetRooms || targetRooms.length === 0) return false;
+
+    return senderRooms.some((r) => targetRooms.includes(r));
+  };
+
   // Relay WebRTC Offer / Answer signal
   socket.on('signal', ({ to, signal }) => {
-    if (!to || !signal) return;
+    if (!to || !signal || !canRelayTo(to)) return;
     io.to(to).emit('receive-signal', {
       from: socket.id,
       signal
@@ -18,7 +34,7 @@ export function registerSignalingHandlers(io, socket) {
 
   // Relay WebRTC ICE Candidate
   socket.on('ice-candidate', ({ to, candidate }) => {
-    if (!to || !candidate) return;
+    if (!to || !candidate || !canRelayTo(to)) return;
     io.to(to).emit('ice-candidate', {
       from: socket.id,
       candidate

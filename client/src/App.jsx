@@ -85,7 +85,9 @@ export default function App() {
     peers,
     connectionStatus,
     isHost,
-    roomMedia
+    roomMedia,
+    isSessionTransferred,
+    reconnect
   } = useWebRTC({
     roomId: currentView === 'call' ? roomId : null,
     userId: currentUser?.uid,
@@ -208,6 +210,8 @@ export default function App() {
         connectionStatus={connectionStatus}
         isHost={isHost}
         initialMedia={roomMedia}
+        isSessionTransferred={isSessionTransferred}
+        onUseThisTab={reconnect}
         onToggleAudio={toggleAudio}
         onToggleVideo={toggleVideo}
         onLeaveCall={handleLeaveCall}
@@ -253,7 +257,7 @@ export default function App() {
 
   // Render Landing Screen
   return (
-    <div className="min-h-screen bg-[#080d10] text-[#e9e9e9] selection:bg-[#ff7a00] selection:text-white font-sans flex flex-col">
+    <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-[#080d10] dark:text-[#e9e9e9] selection:bg-[#ff7a00] selection:text-white font-sans flex flex-col transition-colors duration-200">
       <Navbar
         currentUser={currentUser}
         onOpenAuth={(mode) => handleOpenAuth(mode)}

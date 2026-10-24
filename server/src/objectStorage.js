@@ -141,12 +141,34 @@ class OciObjectStorageService {
 
       if (rangeHeader) {
         const parts = rangeHeader.replace(/bytes=/, '').split('-');
-        const start = parseInt(parts[0], 10);
-        const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+        let start;
+        let end;
 
-        if (start >= fileSize || end >= fileSize) {
-          res.status(416).set('Content-Range', `bytes */${fileSize}`);
-          return res.end();
+        if (parts[0] === '' && parts[1]) {
+          // Suffix range: bytes=-500 requests the final 500 bytes of the file (#11)
+          const suffixLength = parseInt(parts[1], 10);
+          if (isNaN(suffixLength) || suffixLength <= 0) {
+            res.status(416).set('Content-Range', `bytes */${fileSize}`);
+            return res.end();
+          }
+          start = Math.max(0, fileSize - suffixLength);
+          end = fileSize - 1;
+        } else {
+          start = parseInt(parts[0], 10);
+          end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+
+          if (isNaN(start) || start < 0 || start >= fileSize) {
+            res.status(416).set('Content-Range', `bytes */${fileSize}`);
+            return res.end();
+          }
+          // Clamp end to fileSize - 1 per RFC 7233
+          if (isNaN(end) || end >= fileSize) {
+            end = fileSize - 1;
+          }
+          if (start > end) {
+            res.status(416).set('Content-Range', `bytes */${fileSize}`);
+            return res.end();
+          }
         }
 
         const chunkSize = end - start + 1;

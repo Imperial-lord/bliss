@@ -93,13 +93,13 @@ export default function AuthModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in font-sans selection:bg-[#ff7a00] selection:text-white">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 dark:bg-black/85 backdrop-blur-md animate-fade-in font-sans selection:bg-[#ff7a00] selection:text-white">
       {/* Symmetrical Modal Card (Consistent max-w-4xl, Zero Dimension Jumping) */}
-      <div className="relative w-full max-w-4xl bg-[#12171c]/95 border border-white/10 rounded-3xl shadow-2xl p-7 sm:p-10 max-h-[92vh] overflow-y-auto">
+      <div className="relative w-full max-w-4xl bg-white dark:bg-[#12171c]/95 border border-slate-200 dark:border-white/10 rounded-3xl shadow-2xl p-7 sm:p-10 max-h-[92vh] overflow-y-auto transition-colors duration-200">
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-6 right-6 p-2 rounded-full bg-white/5 hover:bg-white/10 text-[#9aa6af] hover:text-white transition-all z-20"
+          className="absolute top-6 right-6 p-2 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 dark:bg-white/5 dark:hover:bg-white/10 dark:text-[#9aa6af] dark:hover:text-white transition-all z-20"
         >
           <X className="w-5 h-5" />
         </button>
@@ -107,14 +107,14 @@ export default function AuthModal({
         {/* Header Bar: Eyebrow + Title + Symmetrical 50/50 Tab Switcher */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-7 pr-8">
           <div>
-            <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-[#ff7a00]/10 text-[#ff7a00] text-[10px] font-bold uppercase tracking-widest mb-2 border border-[#ff7a00]/30 shadow-glow-orange">
+            <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-[#ff7a00]/10 text-[#ff7a00] text-[10px] font-bold uppercase tracking-widest mb-2 border border-[#ff7a00]/30 shadow-sm dark:shadow-glow-orange">
               <Sparkles className="w-3 h-3" />
               <span>Cinema Protocol</span>
             </div>
-            <h2 className="font-display text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+            <h2 className="font-display text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
               {mode === 'signup' ? 'Create Your Cinema Profile' : 'Welcome Back'}
             </h2>
-            <p className="text-xs sm:text-sm text-[#9aa6af] mt-1 font-sans">
+            <p className="text-xs sm:text-sm text-slate-600 dark:text-[#9aa6af] mt-1 font-sans">
               {requiredNotice || (
                 mode === 'signup'
                   ? 'Choose your cinema avatar persona, pick favorite genres, and host watch parties.'
@@ -124,7 +124,7 @@ export default function AuthModal({
           </div>
 
           {/* Symmetrical 50/50 Segmented Tab Control */}
-          <div className="flex bg-[#0d1217] p-1.5 rounded-xl border border-white/10 w-64 shrink-0 self-start sm:self-auto shadow-inner">
+          <div className="flex bg-slate-100 dark:bg-[#0d1217] p-1.5 rounded-xl border border-slate-200/80 dark:border-white/10 w-64 shrink-0 self-start sm:self-auto shadow-inner">
             <button
               type="button"
               onClick={() => {
@@ -133,8 +133,8 @@ export default function AuthModal({
               }}
               className={`flex-1 py-2 text-center text-xs font-semibold rounded-lg transition-all duration-150 ${
                 mode === 'signin'
-                  ? 'bg-[#1b222a] text-white shadow-sm border border-white/[0.08]'
-                  : 'text-[#9aa6af] hover:text-white'
+                  ? 'bg-white text-slate-900 shadow-sm border border-slate-200/80 dark:bg-[#1b222a] dark:text-white dark:border-white/[0.08]'
+                  : 'text-slate-600 hover:text-slate-900 dark:text-[#9aa6af] dark:hover:text-white'
               }`}
             >
               Sign In
@@ -147,8 +147,8 @@ export default function AuthModal({
               }}
               className={`flex-1 py-2 text-center text-xs font-semibold rounded-lg transition-all duration-150 ${
                 mode === 'signup'
-                  ? 'bg-[#1b222a] text-white shadow-sm border border-white/[0.08]'
-                  : 'text-[#9aa6af] hover:text-white'
+                  ? 'bg-white text-slate-900 shadow-sm border border-slate-200/80 dark:bg-[#1b222a] dark:text-white dark:border-white/[0.08]'
+                  : 'text-slate-600 hover:text-slate-900 dark:text-[#9aa6af] dark:hover:text-white'
               }`}
             >
               Create Account

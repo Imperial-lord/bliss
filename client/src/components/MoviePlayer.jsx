@@ -260,10 +260,17 @@ export default function MoviePlayer({
   useEffect(() => {
     if (isHost || !remotePlayback || !videoRef.current) return;
 
-    const { action, currentTime: targetTime, updatedAt } = remotePlayback;
+    const { action, currentTime: targetTime, updatedAt, isPlaying: hostIsPlaying, serverTime } = remotePlayback;
+    const effectiveAction = action || (hostIsPlaying ? 'play' : 'pause');
+    const isEffectivePlaying = hostIsPlaying ?? (effectiveAction === 'play');
 
-    if (action === 'play') {
-      const elapsed = Math.max(0, (Date.now() - updatedAt) / 1000);
+    // Estimate clock offset between client Date.now() and server's timestamp
+    const serverNowRef = serverTime || updatedAt || Date.now();
+    const clockOffset = serverNowRef - Date.now();
+    const currentEstimatedServerNow = Date.now() + clockOffset;
+
+    if (effectiveAction === 'play' || (effectiveAction === 'heartbeat' && isEffectivePlaying)) {
+      const elapsed = Math.max(0, (currentEstimatedServerNow - updatedAt) / 1000);
       const expectedTime = targetTime + elapsed;
 
       if (Math.abs(videoRef.current.currentTime - expectedTime) > 0.8) {
@@ -294,27 +301,43 @@ export default function MoviePlayer({
             console.warn('[Peer Playback Error]:', err);
           }
         });
-    } else if (action === 'pause') {
+    } else if (effectiveAction === 'pause' || effectiveAction === 'buffering') {
       videoRef.current.pause();
       setIsPlaying(false);
+      if (typeof targetTime === 'number' && Math.abs(videoRef.current.currentTime - targetTime) > 0.5) {
+        videoRef.current.currentTime = targetTime;
+      }
+    } else if (effectiveAction === 'seek') {
       if (typeof targetTime === 'number') {
         videoRef.current.currentTime = targetTime;
       }
-    } else if (action === 'seek') {
-      if (typeof targetTime === 'number') {
-        videoRef.current.currentTime = targetTime;
+      if (isEffectivePlaying) {
+        videoRef.current
+          .play()
+          .then(() => {
+            setIsPlaying(true);
+            setHasStartedPlayback(true);
+          })
+          .catch(console.warn);
       }
     }
   }, [remotePlayback, isHost]);
 
   // Periodic drift correction for non-host peers
   useEffect(() => {
-    if (isHost || !videoRef.current || !remotePlayback || remotePlayback.action !== 'play') return;
+    if (isHost || !videoRef.current || !remotePlayback) return;
+
+    const isEffectivePlaying = remotePlayback.isPlaying ?? (remotePlayback.action === 'play');
+    if (!isEffectivePlaying) return;
 
     const interval = setInterval(() => {
       if (!videoRef.current || videoRef.current.paused) return;
 
-      const elapsed = Math.max(0, (Date.now() - remotePlayback.updatedAt) / 1000);
+      const serverNowRef = remotePlayback.serverTime || remotePlayback.updatedAt || Date.now();
+      const clockOffset = serverNowRef - Date.now();
+      const currentEstimatedServerNow = Date.now() + clockOffset;
+
+      const elapsed = Math.max(0, (currentEstimatedServerNow - remotePlayback.updatedAt) / 1000);
       const expected = remotePlayback.currentTime + elapsed;
       const drift = Math.abs(videoRef.current.currentTime - expected);
 
@@ -326,6 +349,19 @@ export default function MoviePlayer({
 
     return () => clearInterval(interval);
   }, [remotePlayback, isHost]);
+
+  // Host: Send periodic sync heartbeat so peers are tightly anchored to host's real position
+  useEffect(() => {
+    if (!isHost || !isPlaying || !videoRef.current || !onSyncPlayback) return;
+
+    const interval = setInterval(() => {
+      if (videoRef.current && !videoRef.current.paused && !videoRef.current.seeking) {
+        onSyncPlayback('heartbeat', videoRef.current.currentTime);
+      }
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [isHost, isPlaying, onSyncPlayback]);
 
   // Host: Toggle Play/Pause with async race protection
   const togglePlay = useCallback(async () => {
@@ -733,9 +769,30 @@ export default function MoviePlayer({
               setIsBuffering(false);
               setHasStartedPlayback(true);
             }}
-            onPause={() => setIsPlaying(false)}
-            onWaiting={() => setIsBuffering(true)}
-            onPlaying={() => setIsBuffering(false)}
+            onPause={() => {
+              setIsPlaying(false);
+              if (isHost && onSyncPlayback && videoRef.current && !videoRef.current.ended) {
+                onSyncPlayback('pause', videoRef.current.currentTime);
+              }
+            }}
+            onEnded={() => {
+              setIsPlaying(false);
+              if (isHost && onSyncPlayback && videoRef.current) {
+                onSyncPlayback('pause', videoRef.current.duration || videoRef.current.currentTime);
+              }
+            }}
+            onWaiting={() => {
+              setIsBuffering(true);
+              if (isHost && onSyncPlayback && videoRef.current && !videoRef.current.paused) {
+                onSyncPlayback('buffering', videoRef.current.currentTime);
+              }
+            }}
+            onPlaying={() => {
+              setIsBuffering(false);
+              if (isHost && onSyncPlayback && videoRef.current) {
+                onSyncPlayback('play', videoRef.current.currentTime);
+              }
+            }}
             onCanPlay={() => setIsBuffering(false)}
             onError={(e) => console.warn('[Video Media Error]:', e)}
           />

@@ -34,10 +34,46 @@ export function registerRoomHandlers(io, socket) {
       videoEnabled: videoEnabled ?? true
     });
 
+    // If user opened this room from another tab, gracefully transfer session and retire old socket
+    if (peer.supersededSocketId) {
+      const oldSocketId = peer.supersededSocketId;
+      console.log(
+        `[Room] User ${peer.userName} (${peer.userId}) opened another tab. Superseding old socket: ${oldSocketId}`
+      );
+      io.to(oldSocketId).emit('session-transferred', {
+        reason: 'This watch party was opened in another tab or window.'
+      });
+      const oldSocket = io.sockets.sockets?.get ? io.sockets.sockets.get(oldSocketId) : null;
+      if (oldSocket) {
+        oldSocket.leave(channel);
+      }
+      roomManager.leaveRoom(cleanRoomId, oldSocketId);
+      socket.to(channel).emit('peer-left', { socketId: oldSocketId });
+      if (peer.isHost) {
+        socket.to(channel).emit('host-changed', {
+          hostSocketId: socket.id,
+          hostUserName: peer.userName
+        });
+      }
+    }
+
     // Fetch all existing peers in this room except the joining user
     const existingPeers = roomManager.getPeersInRoom(cleanRoomId, socket.id);
     const hostSocketId = roomManager.getRoomHost(cleanRoomId);
     const currentMedia = roomManager.getMediaState(cleanRoomId);
+
+    // Sanitize peers for public delivery: never leak private internal userIds to other peers (#10)
+    const sanitizePublicPeer = (p) => ({
+      socketId: p.socketId,
+      userName: p.userName,
+      avatarId: p.avatarId,
+      audioEnabled: p.audioEnabled,
+      videoEnabled: p.videoEnabled,
+      isHost: p.isHost
+    });
+
+    const publicPeers = existingPeers.map(sanitizePublicPeer);
+    const publicSelf = sanitizePublicPeer(peer);
 
     console.log(
       `[Room] ${peer.userName} (${socket.id}) joined room "${cleanRoomId}". Host: ${peer.isHost ? 'YES' : 'NO'}. Existing peers: ${existingPeers.length}`
@@ -48,15 +84,15 @@ export function registerRoomHandlers(io, socket) {
       callback({
         success: true,
         self: peer,
-        peers: existingPeers,
+        peers: publicPeers,
         isHost: peer.isHost,
         hostSocketId,
         media: currentMedia
       });
     }
 
-    // Notify other peers in this room that a newcomer has joined
-    socket.to(channel).emit('peer-joined', peer);
+    // Notify other peers in this room that a newcomer has joined (with private credentials stripped)
+    socket.to(channel).emit('peer-joined', publicSelf);
   });
 
   // Peer explicitly left a room

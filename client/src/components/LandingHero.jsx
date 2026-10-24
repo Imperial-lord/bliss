@@ -55,7 +55,7 @@ export default function LandingHero({ onStartParty, onJoinWithCode, currentUser 
           {/* LHS: Eyebrow + Main Hero Title + Description (7 cols) */}
           <div className="lg:col-span-7 flex flex-col items-center lg:items-start text-center lg:text-left">
             {/* Eyebrow Pill */}
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#12171c] border border-[#ff7a00]/30 shadow-glow-orange animate-gentle-float mb-5">
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white dark:bg-[#12171c] border border-orange-500/30 dark:border-[#ff7a00]/30 shadow-sm dark:shadow-glow-orange animate-gentle-float mb-5">
               <span className="w-2 h-2 rounded-full bg-[#ff7a00] animate-ping" />
               <span className="text-[11px] font-bold uppercase tracking-widest text-[#ff7a00]">
                 Direct P2P Cinema Streaming & Video Calls
@@ -63,21 +63,21 @@ export default function LandingHero({ onStartParty, onJoinWithCode, currentUser 
             </div>
 
             {/* Clean, Impactful Hero Title */}
-            <h1 className="font-display text-4xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight text-white leading-[1.05]">
+            <h1 className="font-display text-4xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight text-slate-900 dark:text-white leading-[1.05]">
               Stream movies together. <br />
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#ff7a00] via-[#ff9433] to-[#ff3d2e]">
                 Live and in sync.
               </span>
             </h1>
 
-            <p className="mt-5 text-base sm:text-lg text-[#9aa6af] max-w-xl font-sans leading-relaxed">
+            <p className="mt-5 text-base sm:text-lg text-slate-600 dark:text-[#9aa6af] max-w-xl font-sans leading-relaxed">
               Movie playback on the left. Zoom-like peer video calling on the right. Crystal-clear WebRTC audio, sub-second sync, and animated party reactions.
             </p>
 
             {/* Feature Badges */}
-            <div className="mt-6 flex flex-wrap items-center justify-center lg:justify-start gap-4 text-xs font-mono text-[#9aa6af]">
+            <div className="mt-6 flex flex-wrap items-center justify-center lg:justify-start gap-4 text-xs font-mono text-slate-600 dark:text-[#9aa6af]">
               <div className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400" />
                 <span>Sub-second Sync</span>
               </div>
               <span>•</span>
@@ -87,7 +87,7 @@ export default function LandingHero({ onStartParty, onJoinWithCode, currentUser 
               </div>
               <span>•</span>
               <div className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
+                <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 dark:bg-cyan-400" />
                 <span>100% Ephemeral</span>
               </div>
             </div>
@@ -95,16 +95,16 @@ export default function LandingHero({ onStartParty, onJoinWithCode, currentUser 
 
           {/* RHS: Action Hub Card (Host New Room & Join With Code) (5 cols) */}
           <div className="lg:col-span-5 w-full">
-            <div className="bg-[#12171c]/90 backdrop-blur-2xl border-2 border-white/10 hover:border-[#ff7a00]/40 rounded-3xl p-6 sm:p-7 shadow-2xl transition-all duration-300 flex flex-col justify-between space-y-6">
+            <div className="bg-white/95 dark:bg-[#12171c]/90 backdrop-blur-2xl border-2 border-slate-200/80 dark:border-white/10 hover:border-[#ff7a00]/40 rounded-3xl p-6 sm:p-7 shadow-xl dark:shadow-2xl transition-all duration-300 flex flex-col justify-between space-y-6">
               {/* PRIMARY ACTION 1: Host a Watch Party */}
               <div className="flex flex-col text-left">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-[#ff7a00] mb-1">
                   Start From Scratch
                 </span>
-                <h3 className="font-display text-xl sm:text-2xl font-bold text-white mb-1.5">
+                <h3 className="font-display text-xl sm:text-2xl font-bold text-slate-900 dark:text-white mb-1.5">
                   Host New Room
                 </h3>
-                <p className="text-xs text-[#9aa6af] mb-4">
+                <p className="text-xs text-slate-600 dark:text-[#9aa6af] mb-4">
                   Create a private theater room and invite your friends in one click.
                 </p>
 
@@ -120,28 +120,28 @@ export default function LandingHero({ onStartParty, onJoinWithCode, currentUser 
 
               {/* DIVIDER */}
               <div className="flex items-center gap-3">
-                <div className="flex-1 h-[1px] bg-white/10" />
-                <span className="text-[10px] font-bold uppercase text-[#9aa6af] px-2.5 py-0.5 bg-[#080d10] rounded-full border border-white/5">
+                <div className="flex-1 h-[1px] bg-slate-200 dark:bg-white/10" />
+                <span className="text-[10px] font-bold uppercase text-slate-500 dark:text-[#9aa6af] px-2.5 py-0.5 bg-slate-100 dark:bg-[#080d10] rounded-full border border-slate-200/80 dark:border-white/5">
                   OR
                 </span>
-                <div className="flex-1 h-[1px] bg-white/10" />
+                <div className="flex-1 h-[1px] bg-slate-200 dark:bg-white/10" />
               </div>
 
               {/* PRIMARY ACTION 2: Join with Code */}
               <div className="flex flex-col text-left">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400 mb-1">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-500 dark:text-emerald-400 mb-1">
                   Got an Invite?
                 </span>
-                <h3 className="font-display text-xl sm:text-2xl font-bold text-white mb-1.5">
+                <h3 className="font-display text-xl sm:text-2xl font-bold text-slate-900 dark:text-white mb-1.5">
                   Join With Code
                 </h3>
-                <p className="text-xs text-[#9aa6af] mb-3.5">
+                <p className="text-xs text-slate-600 dark:text-[#9aa6af] mb-3.5">
                   Enter the 6-character room code shared by your host.
                 </p>
 
                 <form onSubmit={handleJoinSubmit} className="space-y-3">
                   <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#9aa6af]">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 dark:text-[#9aa6af]">
                       <KeyRound className="w-4 h-4" />
                     </div>
                     <input
@@ -149,24 +149,24 @@ export default function LandingHero({ onStartParty, onJoinWithCode, currentUser 
                       placeholder="e.g. CYBER-7"
                       value={roomCodeInput}
                       onChange={(e) => setRoomCodeInput(e.target.value.toLowerCase())}
-                      className="w-full pl-10 pr-24 py-3.5 rounded-2xl bg-[#080d10] border border-white/15 focus:border-[#ff7a00] focus:ring-2 focus:ring-[#ff7a00]/30 text-white font-mono text-sm placeholder-[#9aa6af]/50 uppercase tracking-widest outline-none transition-all"
+                      className="w-full pl-10 pr-24 py-3.5 rounded-2xl bg-slate-50 dark:bg-[#080d10] border border-slate-300/80 dark:border-white/15 focus:border-[#ff7a00] focus:ring-2 focus:ring-[#ff7a00]/30 text-slate-900 dark:text-white font-mono text-sm placeholder-slate-400 dark:placeholder-[#9aa6af]/50 uppercase tracking-widest outline-none transition-all"
                     />
                     <button
                       type="submit"
                       disabled={!roomCodeInput.trim()}
-                      className="absolute right-1.5 top-1.5 bottom-1.5 px-4 rounded-xl bg-white/10 hover:bg-[#ff7a00] disabled:opacity-30 disabled:hover:bg-white/10 text-white font-bold uppercase tracking-wider text-xs transition-all flex items-center justify-center shadow"
+                      className="absolute right-1.5 top-1.5 bottom-1.5 px-4 rounded-xl bg-slate-200 hover:bg-[#ff7a00] hover:text-white text-slate-700 dark:bg-white/10 dark:text-white dark:hover:bg-[#ff7a00] disabled:opacity-30 disabled:hover:bg-slate-200 dark:disabled:hover:bg-white/10 font-bold uppercase tracking-wider text-xs transition-all flex items-center justify-center shadow"
                     >
                       Join
                     </button>
                   </div>
 
                   {/* Quick Clickable Demo Rooms */}
-                  <div className="flex items-center gap-1.5 text-[11px] text-[#9aa6af]">
+                  <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-[#9aa6af]">
                     <span>Try demo:</span>
                     <button
                       type="button"
                       onClick={() => handleQuickChip('cyber-cinema')}
-                      className="text-xs font-mono text-white/80 hover:text-[#ff7a00] underline underline-offset-2 transition-colors"
+                      className="text-xs font-mono text-slate-800 dark:text-white/80 hover:text-[#ff7a00] underline underline-offset-2 transition-colors font-medium"
                     >
                       cyber-cinema
                     </button>
@@ -174,7 +174,7 @@ export default function LandingHero({ onStartParty, onJoinWithCode, currentUser 
                     <button
                       type="button"
                       onClick={() => handleQuickChip('movie-night')}
-                      className="text-xs font-mono text-white/80 hover:text-[#ff7a00] underline underline-offset-2 transition-colors"
+                      className="text-xs font-mono text-slate-800 dark:text-white/80 hover:text-[#ff7a00] underline underline-offset-2 transition-colors font-medium"
                     >
                       movie-night
                     </button>
@@ -192,11 +192,11 @@ export default function LandingHero({ onStartParty, onJoinWithCode, currentUser 
           {/* Header pill above the preview */}
           <div className="flex items-center justify-between mb-3 px-2">
             <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-xs font-bold uppercase tracking-wider text-white">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse" />
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white">
                 Interactive Cinema Stage
               </span>
-              <span className="text-[11px] text-[#9aa6af]">
+              <span className="text-[11px] text-slate-500 dark:text-[#9aa6af]">
                 (Test the video & reactions below)
               </span>
             </div>
@@ -210,22 +210,22 @@ export default function LandingHero({ onStartParty, onJoinWithCode, currentUser 
             </button>
           </div>
 
-          <div className="relative rounded-3xl p-2 sm:p-3 bg-gradient-to-b from-white/15 via-white/5 to-transparent shadow-2xl">
-            <div className="relative rounded-2xl bg-[#12171c] border border-white/10 overflow-hidden shadow-2xl">
+          <div className="relative rounded-3xl p-2 sm:p-3 bg-gradient-to-b from-slate-200/80 dark:from-white/15 via-slate-100/40 dark:via-white/5 to-transparent shadow-xl dark:shadow-2xl">
+            <div className="relative rounded-2xl bg-white dark:bg-[#12171c] border border-slate-200/80 dark:border-white/10 overflow-hidden shadow-xl dark:shadow-2xl">
               {/* Window Title Bar */}
-              <div className="h-11 bg-[#080d10] px-4 flex items-center justify-between border-b border-white/5">
+              <div className="h-11 bg-slate-100 dark:bg-[#080d10] px-4 flex items-center justify-between border-b border-slate-200/80 dark:border-white/5">
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded-full bg-red-500/80" />
                   <div className="w-3 h-3 rounded-full bg-yellow-500/80" />
                   <div className="w-3 h-3 rounded-full bg-green-500/80" />
-                  <span className="ml-3 text-xs font-mono text-[#9aa6af]">
+                  <span className="ml-3 text-xs font-mono text-slate-600 dark:text-[#9aa6af]">
                     bliss.stream/room/cyber-cinema
                   </span>
                 </div>
 
                 <div className="flex items-center gap-3">
-                  <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 rounded-full flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-wider bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 rounded-full flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse" />
                     Sub-second Sync
                   </span>
                   <button
@@ -419,18 +419,18 @@ export default function LandingHero({ onStartParty, onJoinWithCode, currentUser 
         </div>
 
         {/* Value Badges */}
-        <div className="mt-12 flex flex-wrap items-center justify-center gap-8 text-xs text-[#9aa6af]">
+        <div className="mt-12 flex flex-wrap items-center justify-center gap-8 text-xs text-slate-600 dark:text-[#9aa6af]">
           <div className="flex items-center gap-2">
             <Zap className="w-4 h-4 text-[#ff7a00]" />
-            <span className="font-semibold text-white">Direct P2P WebRTC Mesh</span>
+            <span className="font-semibold text-slate-800 dark:text-white">Direct P2P WebRTC Mesh</span>
           </div>
           <div className="flex items-center gap-2">
-            <ShieldCheck className="w-4 h-4 text-emerald-400" />
-            <span className="font-semibold text-white">Encrypted Direct Media</span>
+            <ShieldCheck className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
+            <span className="font-semibold text-slate-800 dark:text-white">Encrypted Direct Media</span>
           </div>
           <div className="flex items-center gap-2">
-            <Users className="w-4 h-4 text-indigo-400" />
-            <span className="font-semibold text-white">Multi-Peer Synchronized Video</span>
+            <Users className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
+            <span className="font-semibold text-slate-800 dark:text-white">Multi-Peer Synchronized Video</span>
           </div>
         </div>
       </div>
