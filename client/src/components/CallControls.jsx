@@ -8,7 +8,8 @@ import {
   Share2,
   Check,
   Tv,
-  LayoutGrid
+  LayoutGrid,
+  Radio
 } from 'lucide-react';
 
 export default function CallControls({
@@ -16,6 +17,11 @@ export default function CallControls({
   isVideoEnabled,
   viewMode,
   roomId,
+  isPushToTalk = false,
+  isPttActive = false,
+  onTogglePushToTalk,
+  onStartPtt,
+  onStopPtt,
   onToggleAudio,
   onToggleVideo,
   onToggleViewMode,
@@ -33,18 +39,59 @@ export default function CallControls({
 
   return (
     <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 rounded-full bg-white/95 dark:bg-[#12171c]/90 backdrop-blur-xl border border-slate-200/80 dark:border-white/10 shadow-2xl transition-colors duration-200">
-      {/* Audio Toggle */}
-      <button
-        onClick={onToggleAudio}
-        title={isAudioEnabled ? 'Mute Microphone' : 'Unmute Microphone'}
-        className={`p-3 rounded-full transition-all duration-150 flex items-center justify-center ${
-          isAudioEnabled
-            ? 'bg-slate-100 text-slate-800 hover:bg-slate-200 border border-slate-200/80 dark:bg-[#1b2229] dark:text-white dark:hover:bg-[#252e37] dark:border-white/10'
-            : 'bg-red-500 text-white hover:bg-red-600 shadow-lg'
-        }`}
-      >
-        {isAudioEnabled ? <Mic className="w-4 h-4 text-emerald-500 dark:text-emerald-400" /> : <MicOff className="w-4 h-4" />}
-      </button>
+      {/* Audio Controls: Push-to-Talk or Open Mic */}
+      <div className="flex items-center gap-1.5">
+        {isPushToTalk ? (
+          <button
+            onMouseDown={onStartPtt}
+            onMouseUp={onStopPtt}
+            onTouchStart={(e) => {
+              e.preventDefault();
+              onStartPtt?.();
+            }}
+            onTouchEnd={(e) => {
+              e.preventDefault();
+              onStopPtt?.();
+            }}
+            title="Push-to-Talk: Click and hold or press [T] on keyboard"
+            className={`px-3 py-2.5 rounded-full transition-all duration-150 flex items-center gap-1.5 font-sans select-none cursor-pointer ${
+              isPttActive
+                ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/30 scale-105 animate-pulse'
+                : 'bg-slate-100 text-slate-800 hover:bg-slate-200 border border-slate-200/80 dark:bg-[#1b2229] dark:text-white dark:hover:bg-[#252e37] dark:border-white/10'
+            }`}
+          >
+            <Mic className={`w-4 h-4 ${isPttActive ? 'text-white' : 'text-emerald-500 dark:text-emerald-400'}`} />
+            <span className="text-[11px] font-bold font-mono uppercase tracking-wider">
+              {isPttActive ? 'Transmitting' : 'Hold [T]'}
+            </span>
+          </button>
+        ) : (
+          <button
+            onClick={onToggleAudio}
+            title={isAudioEnabled ? 'Mute Microphone' : 'Unmute Microphone'}
+            className={`p-3 rounded-full transition-all duration-150 flex items-center justify-center cursor-pointer ${
+              isAudioEnabled
+                ? 'bg-slate-100 text-slate-800 hover:bg-slate-200 border border-slate-200/80 dark:bg-[#1b2229] dark:text-white dark:hover:bg-[#252e37] dark:border-white/10'
+                : 'bg-red-500 text-white hover:bg-red-600 shadow-lg'
+            }`}
+          >
+            {isAudioEnabled ? <Mic className="w-4 h-4 text-emerald-500 dark:text-emerald-400" /> : <MicOff className="w-4 h-4" />}
+          </button>
+        )}
+
+        {/* PTT Mode Switcher Pill */}
+        <button
+          onClick={onTogglePushToTalk}
+          title={isPushToTalk ? 'Switch to Open Mic (Voice Activity)' : 'Switch to Push-to-Talk (Hold [T])'}
+          className={`p-2 rounded-full transition-all duration-150 cursor-pointer ${
+            isPushToTalk
+              ? 'bg-[#ff7a00]/15 text-[#ff7a00] border border-[#ff7a00]/30 shadow-glow-orange/20'
+              : 'text-slate-400 hover:text-slate-600 dark:text-[#9aa6af] dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5'
+          }`}
+        >
+          <Radio className="w-3.5 h-3.5" />
+        </button>
+      </div>
 
       {/* Video Toggle */}
       <button

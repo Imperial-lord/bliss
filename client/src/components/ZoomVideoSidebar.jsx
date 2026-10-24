@@ -24,6 +24,7 @@ export default function ZoomVideoSidebar({
   isAudioEnabled,
   isVideoEnabled,
   peers = [],
+  speakingPeers = new Set(),
   chatMessages = [],
   onSendMessage,
   onSendReaction
@@ -115,6 +116,7 @@ export default function ZoomVideoSidebar({
                 isLocal={true}
                 isAudioEnabled={isAudioEnabled}
                 isVideoEnabled={isVideoEnabled}
+                isSpeaking={isAudioEnabled}
               />
               {/* Voice waveform animation indicator when audio is enabled */}
               {isAudioEnabled && (
@@ -139,6 +141,7 @@ export default function ZoomVideoSidebar({
                   isLocal={false}
                   isAudioEnabled={peer.audioEnabled}
                   isVideoEnabled={peer.videoEnabled}
+                  isSpeaking={speakingPeers?.has ? speakingPeers.has(peer.socketId) : false}
                 />
                 {peer.audioEnabled && (
                   <div className="absolute top-2.5 right-2.5 flex items-center gap-0.5 bg-black/60 backdrop-blur-md px-1.5 py-1 rounded-md border border-white/10">

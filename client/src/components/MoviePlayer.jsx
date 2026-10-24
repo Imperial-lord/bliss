@@ -18,9 +18,11 @@ import {
   RotateCw,
   Lock,
   Clock,
-  Tv
+  Tv,
+  Headphones
 } from 'lucide-react';
 import { SERVER_URL } from '../config/webrtc';
+import { useAudioDucking } from '../hooks/useAudioDucking';
 
 /**
  * Formats messy torrent file and release names into clean, human-readable movie titles.
@@ -96,6 +98,7 @@ function parseVttToCues(vttText) {
 export default function MoviePlayer({
   roomId,
   isHost = false,
+  peers = [],
   mediaStatus = 'idle',
   mediaMessage = '',
   mediaTitle = '',
@@ -110,6 +113,7 @@ export default function MoviePlayer({
   const [isBuffering, setIsBuffering] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [volume, setVolume] = useState(1);
+  const [isDuckingEnabled, setIsDuckingEnabled] = useState(true);
   const [showAutoplayMutedHint, setShowAutoplayMutedHint] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -130,6 +134,22 @@ export default function MoviePlayer({
   const playPromiseRef = useRef(null);
   const controlsTimeoutRef = useRef(null);
   const feedbackTimeoutRef = useRef(null);
+
+  // Auto-Ducking: Dynamically dims movie volume when remote peers speak to stop speaker bleed
+  const { effectiveVolume, isDucked, activeSpeaker } = useAudioDucking({
+    peers,
+    isEnabled: isDuckingEnabled,
+    baseVolume: volume,
+    isMuted,
+    duckingFactor: 0.3
+  });
+
+  // Apply effective ducked volume to video element
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.volume = effectiveVolume;
+    }
+  }, [effectiveVolume]);
 
   // Formatted human-readable cinema title
   const displayTitle = cleanMovieTitle(mediaTitle);
@@ -838,6 +858,16 @@ export default function MoviePlayer({
             </div>
           )}
 
+          {/* Active Audio Ducking Notification Pill */}
+          {isDucked && activeSpeaker && isDuckingEnabled && (
+            <div className="absolute top-4 right-4 z-30 animate-fade-in pointer-events-none">
+              <div className="flex items-center gap-2 bg-[#080d10]/85 border border-emerald-500/40 text-emerald-400 px-3 py-1.5 rounded-full shadow-lg backdrop-blur-md text-xs font-semibold">
+                <Headphones className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+                <span>Audio ducked for {activeSpeaker} (-70%)</span>
+              </div>
+            </div>
+          )}
+
           {/* CUSTOM CINEMATIC SUBTITLE OVERLAY */}
           {showSubtitles && currentCue && (
             <div className="absolute bottom-24 left-1/2 -translate-x-1/2 max-w-[85%] z-25 pointer-events-none text-center animate-fade-in">
@@ -1038,6 +1068,34 @@ export default function MoviePlayer({
                   title="Toggle Local Audio (M)"
                 >
                   {isMuted ? <VolumeX className="w-5 h-5 text-red-400" /> : <Volume2 className="w-5 h-5" />}
+                </button>
+
+                {/* Acoustic Auto-Ducking Toggle */}
+                <button
+                  onClick={() => {
+                    setIsDuckingEnabled((prev) => {
+                      const next = !prev;
+                      triggerToast({
+                        type: 'volume',
+                        text: next ? 'Ducking: ON' : 'Ducking: OFF'
+                      });
+                      return next;
+                    });
+                  }}
+                  className={`p-1.5 transition-colors cursor-pointer active:scale-90 flex items-center justify-center ${
+                    isDuckingEnabled
+                      ? isDucked
+                        ? 'text-emerald-400 animate-pulse'
+                        : 'text-emerald-500 hover:text-emerald-400'
+                      : 'text-[#9aa6af]/50 hover:text-[#9aa6af]'
+                  }`}
+                  title={
+                    isDuckingEnabled
+                      ? 'Auto-Ducking: Active (Automatically lowers movie volume by 70% when friends speak)'
+                      : 'Auto-Ducking: Disabled (Click to enable)'
+                  }
+                >
+                  <Headphones className="w-5 h-5" />
                 </button>
 
                 {/* Subtitles Toggle & Track Selector */}

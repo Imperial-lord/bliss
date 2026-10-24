@@ -8,7 +8,8 @@ export default function VideoTile({
   avatarId = 'cyber-rebel',
   isLocal = false,
   isAudioEnabled = true,
-  isVideoEnabled = true
+  isVideoEnabled = true,
+  isSpeaking = false
 }) {
   const videoRef = useRef(null);
   const avatarObj = AVATAR_OPTIONS.find((a) => a.id === avatarId) || AVATAR_OPTIONS[0];
@@ -20,7 +21,13 @@ export default function VideoTile({
   }, [stream]);
 
   return (
-    <div className="relative group bg-[#12171c] border border-white/10 hover:border-[#ff7a00]/40 rounded-2xl overflow-hidden aspect-video shadow-2xl flex items-center justify-center transition-all duration-300">
+    <div
+      className={`relative group bg-[#12171c] rounded-2xl overflow-hidden aspect-video shadow-2xl flex items-center justify-center transition-all duration-200 ${
+        isSpeaking
+          ? 'ring-2 ring-emerald-500 shadow-emerald-500/20 shadow-lg'
+          : 'border border-white/10 hover:border-[#ff7a00]/40'
+      }`}
+    >
       {/* Video Element */}
       <video
         ref={videoRef}
@@ -50,6 +57,7 @@ export default function VideoTile({
       {/* Bottom Bar inside Video Tile */}
       <div className="absolute bottom-2.5 left-3 right-3 flex items-center justify-between pointer-events-none">
         <div className="bg-[#080d10]/80 backdrop-blur-md px-2.5 py-1 rounded-lg text-xs font-semibold text-white border border-white/10 flex items-center gap-1.5 shadow">
+          {isSpeaking && <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />}
           <span>{userName}</span>
           {isLocal && <span className="text-[#ff7a00] font-bold">(You)</span>}
         </div>

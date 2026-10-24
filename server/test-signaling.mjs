@@ -39,11 +39,26 @@ async function runSelfContainedTest() {
   }
   console.log('✓ Security check passed: Unauthenticated user rejected by server.');
 
+  // 1b. Verify forged ID token is cryptographically rejected
+  const forgedJoin = await new Promise((resolve) => {
+    client1.emit('join-room', {
+      roomId,
+      userId: 'firebase_uid_alice_123',
+      idToken: 'mock_id_token_forged_attacker_789',
+      userName: 'AliceImp'
+    }, resolve);
+  });
+  if (!forgedJoin.error || !forgedJoin.error.includes('Token UID does not match')) {
+    throw new Error('Forged token was not rejected by server: ' + JSON.stringify(forgedJoin));
+  }
+  console.log('✓ Zero-Trust check passed: Forged ID token rejected by server.');
+
   // 2. Client 1 joins with authenticated userId and custom cinema avatar
   const join1 = await new Promise((resolve) => {
     client1.emit('join-room', {
       roomId,
       userId: 'firebase_uid_alice_123',
+      idToken: 'mock_id_token_firebase_uid_alice_123',
       userName: 'Alice',
       avatarId: 'cyber-rebel',
       audioEnabled: true,
@@ -65,6 +80,7 @@ async function runSelfContainedTest() {
     client2.emit('join-room', {
       roomId,
       userId: 'firebase_uid_bob_456',
+      idToken: 'mock_id_token_firebase_uid_bob_456',
       userName: 'Bob',
       avatarId: 'star-voyager',
       audioEnabled: true,
@@ -125,6 +141,7 @@ async function runSelfContainedTest() {
     clientAliceTab2.emit('join-room', {
       roomId,
       userId: 'firebase_uid_alice_123',
+      idToken: 'mock_id_token_firebase_uid_alice_123',
       userName: 'Alice',
       avatarId: 'cyber-rebel',
       audioEnabled: true,

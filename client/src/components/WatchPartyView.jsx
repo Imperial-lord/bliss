@@ -6,6 +6,7 @@ import CallControls from './CallControls';
 import ThemeToggle from './ThemeToggle';
 import { getSocket } from '../services/socket';
 import { logCinemaSession } from '../services/sessionAnalytics';
+import { useAudioDucking } from '../hooks/useAudioDucking';
 
 export default function WatchPartyView({
   roomId,
@@ -14,6 +15,11 @@ export default function WatchPartyView({
   localStream,
   isAudioEnabled,
   isVideoEnabled,
+  isPushToTalk = false,
+  isPttActive = false,
+  onTogglePushToTalk,
+  onStartPtt,
+  onStopPtt,
   peers,
   connectionStatus,
   isHost = false,
@@ -27,6 +33,12 @@ export default function WatchPartyView({
   const [viewMode, setViewMode] = useState('cinema'); // 'cinema' or 'grid'
   const [chatMessages, setChatMessages] = useState([]);
   const [activeReactions, setActiveReactions] = useState([]);
+
+  // Detect which peers are currently speaking for visual feed rings and ducking
+  const { speakingPeers } = useAudioDucking({
+    peers,
+    isEnabled: true
+  });
 
   // Cinema Streaming & Host Authority State
   const [mediaStatus, setMediaStatus] = useState(initialMedia?.status || 'idle');
@@ -269,6 +281,7 @@ export default function WatchPartyView({
             <MoviePlayer
               roomId={roomId}
               isHost={isHost}
+              peers={peers}
               mediaStatus={mediaStatus}
               mediaMessage={mediaMessage}
               mediaTitle={mediaTitle}
@@ -291,6 +304,7 @@ export default function WatchPartyView({
               isAudioEnabled={isAudioEnabled}
               isVideoEnabled={isVideoEnabled}
               peers={peers}
+              speakingPeers={speakingPeers}
               chatMessages={chatMessages}
               onSendMessage={handleSendMessage}
               onSendReaction={handleSendReaction}
@@ -303,6 +317,11 @@ export default function WatchPartyView({
       <CallControls
         isAudioEnabled={isAudioEnabled}
         isVideoEnabled={isVideoEnabled}
+        isPushToTalk={isPushToTalk}
+        isPttActive={isPttActive}
+        onTogglePushToTalk={onTogglePushToTalk}
+        onStartPtt={onStartPtt}
+        onStopPtt={onStopPtt}
         viewMode={viewMode}
         roomId={roomId}
         onToggleAudio={onToggleAudio}

@@ -72,6 +72,11 @@ export default function App() {
     isAudioEnabled,
     isVideoEnabled,
     error: mediaError,
+    isPushToTalk,
+    isPttActive,
+    togglePushToTalk,
+    startPtt,
+    stopPtt,
     toggleAudio,
     toggleVideo
   } = useMediaStream({
@@ -90,6 +95,7 @@ export default function App() {
     reconnect
   } = useWebRTC({
     roomId: currentView === 'call' ? roomId : null,
+    currentUser,
     userId: currentUser?.uid,
     userName: currentUser?.displayName || 'Cinephile',
     avatarId: currentUser?.avatarId || 'cyber-rebel',
@@ -206,6 +212,11 @@ export default function App() {
         localStream={localStream}
         isAudioEnabled={isAudioEnabled}
         isVideoEnabled={isVideoEnabled}
+        isPushToTalk={isPushToTalk}
+        isPttActive={isPttActive}
+        onTogglePushToTalk={togglePushToTalk}
+        onStartPtt={startPtt}
+        onStopPtt={stopPtt}
         peers={peers}
         connectionStatus={connectionStatus}
         isHost={isHost}

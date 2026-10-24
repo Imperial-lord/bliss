@@ -1,5 +1,6 @@
 import { roomManager } from '../rooms.js';
 import { torrentManager } from '../torrentManager.js';
+import { verifyFirebaseIdToken } from '../services/authVerifier.js';
 
 /**
  * Registers room membership, authentication check, departure, and disconnection handlers.
@@ -8,18 +9,42 @@ import { torrentManager } from '../torrentManager.js';
  * @param {import('socket.io').Socket} socket
  */
 export function registerRoomHandlers(io, socket) {
-  // User requests to join a room (strictly requires authenticated userId)
-  socket.on('join-room', ({ roomId, userId, userName, avatarId, audioEnabled, videoEnabled }, callback) => {
-    if (!roomId) {
-      if (typeof callback === 'function') callback({ error: 'Room ID is required' });
-      return;
-    }
-    if (!userId) {
-      if (typeof callback === 'function') callback({ error: 'Authentication required. Please sign up or log in.' });
-      return;
-    }
+  // User requests to join a room (strictly requires authenticated & verified credentials)
+  socket.on(
+    'join-room',
+    async ({ roomId, idToken, userId, userName, avatarId, audioEnabled, videoEnabled }, callback) => {
+      if (!roomId) {
+        if (typeof callback === 'function') callback({ error: 'Room ID is required' });
+        return;
+      }
+      if (!userId) {
+        if (typeof callback === 'function') callback({ error: 'Authentication required. Please sign up or log in.' });
+        return;
+      }
 
-    const cleanRoomId = String(roomId).trim();
+      // Zero-Trust ID Token Verification
+      if (idToken) {
+        const authResult = await verifyFirebaseIdToken(idToken, userId);
+        if (!authResult.valid) {
+          console.warn(
+            `[Room Security] Rejected unverified token from socket ${socket.id} claiming UID "${userId}": ${authResult.error}`
+          );
+          if (typeof callback === 'function') {
+            callback({ error: `Authentication failed: ${authResult.error}` });
+          }
+          return;
+        }
+      } else if (process.env.NODE_ENV === 'production') {
+        console.warn(
+          `[Room Security] Rejected unauthenticated connection without ID token from socket ${socket.id}`
+        );
+        if (typeof callback === 'function') {
+          callback({ error: 'Authentication failed: Missing verified ID token.' });
+        }
+        return;
+      }
+
+      const cleanRoomId = String(roomId).trim();
     const channel = `room:${cleanRoomId}`;
 
     // Join the socket room channel

@@ -2,7 +2,16 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { getSocket, connectSocket } from '../services/socket';
 import { RTC_CONFIG } from '../config/webrtc';
 
-export function useWebRTC({ roomId, userId, userName, avatarId, localStream, isAudioEnabled, isVideoEnabled }) {
+export function useWebRTC({
+  roomId,
+  currentUser = null,
+  userId,
+  userName,
+  avatarId,
+  localStream,
+  isAudioEnabled,
+  isVideoEnabled
+}) {
   // Remote peers map: peerId -> { socketId, userName, avatarId, audioEnabled, videoEnabled, stream }
   const [peers, setPeers] = useState({});
   const [connectionStatus, setConnectionStatus] = useState('connecting'); // 'connecting' | 'connected' | 'disconnected'
@@ -157,14 +166,24 @@ export function useWebRTC({ roomId, userId, userName, avatarId, localStream, isA
 
     const socket = connectSocket();
 
-    const handleConnect = () => {
+    const handleConnect = async () => {
       setConnectionStatus('connected');
       console.log('[Socket] Connected to signaling server, joining room:', roomId);
+
+      let idToken = null;
+      try {
+        if (currentUser && typeof currentUser.getIdToken === 'function') {
+          idToken = await currentUser.getIdToken();
+        }
+      } catch (tokenErr) {
+        console.warn('[WebRTC Auth] Could not retrieve Firebase ID token:', tokenErr);
+      }
 
       socket.emit(
         'join-room',
         {
           roomId,
+          idToken,
           userId,
           userName,
           avatarId: avatarId || 'cyber-rebel',
