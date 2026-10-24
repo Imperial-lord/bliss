@@ -288,7 +288,7 @@ export default function AuthModal({
                     </div>
 
                     {/* Circular Avatar Tokens */}
-                    <div className="flex items-center justify-between gap-1 sm:gap-2 p-3 rounded-2xl bg-[#080d10] border border-white/5">
+                    <div className="grid grid-cols-6 justify-items-center items-center py-3.5 px-2 sm:px-3 rounded-2xl bg-[#080d10] border border-white/5">
                       {AVATAR_OPTIONS.map((avatar) => {
                         const isSelected = selectedAvatarId === avatar.id;
                         return (
@@ -297,16 +297,23 @@ export default function AuthModal({
                             key={avatar.id}
                             onClick={() => setSelectedAvatarId(avatar.id)}
                             title={avatar.name}
-                            className="group relative flex flex-col items-center focus:outline-none transition-transform"
+                            className="group relative flex flex-col items-center focus:outline-none"
                           >
-                            <div
-                              className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full ${avatar.bg} flex items-center justify-center text-lg sm:text-xl shadow-md transition-all duration-200 ${
-                                isSelected
-                                  ? 'ring-2 ring-[#ff7a00] ring-offset-2 ring-offset-[#080d10] scale-110 shadow-glow-orange'
-                                  : 'opacity-50 group-hover:opacity-100 group-hover:scale-105'
-                              }`}
-                            >
-                              {avatar.emoji}
+                            <div className="relative">
+                              <div
+                                className={`w-10 h-10 sm:w-11 sm:h-11 rounded-full ${avatar.bg} flex items-center justify-center text-lg shadow-md transition-all duration-150 ${
+                                  isSelected
+                                    ? 'ring-2 ring-[#ff7a00] shadow-glow-orange opacity-100'
+                                    : 'opacity-50 group-hover:opacity-100 group-hover:ring-1 group-hover:ring-white/20'
+                                }`}
+                              >
+                                {avatar.emoji}
+                              </div>
+                              {isSelected && (
+                                <div className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-[#ff7a00] rounded-full flex items-center justify-center text-white shadow-md z-10">
+                                  <Check className="w-2 h-2 stroke-[3]" />
+                                </div>
+                              )}
                             </div>
                             <span
                               className={`text-[10px] font-medium mt-1.5 transition-colors ${
@@ -315,11 +322,6 @@ export default function AuthModal({
                             >
                               {avatar.name.split(' ')[0]}
                             </span>
-                            {isSelected && (
-                              <div className="absolute -top-1 -right-0.5 w-4 h-4 bg-[#ff7a00] rounded-full flex items-center justify-center text-white shadow">
-                                <Check className="w-2.5 h-2.5 stroke-[3]" />
-                              </div>
-                            )}
                           </button>
                         );
                       })}
