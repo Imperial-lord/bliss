@@ -272,37 +272,23 @@ export default function AuthModal({
             {/* ========================================================================= */}
             {/* SECONDARY INTERACTIVE STUDIO (CINEMA PASS & TASTE - 6 COLS / 50%) */}
             {/* ========================================================================= */}
-            <div className="md:col-span-6 flex flex-col justify-between bg-[#080d10]/60 p-5 sm:p-6 rounded-2xl border border-white/5 space-y-4">
+            <div className="md:col-span-6 flex flex-col justify-between bg-[#080d10]/60 p-6 rounded-2xl border border-white/5 space-y-5">
               {mode === 'signup' ? (
                 <>
-                  {/* Live Persona Card Preview */}
-                  <div className="p-4 rounded-xl bg-[#12171c] border border-white/10 flex items-center gap-4 shadow-sm">
-                    <div
-                      className={`w-12 h-12 rounded-xl ${selectedAvatar.bg} flex items-center justify-center text-2xl shadow-glow-orange shrink-0 border border-white/20`}
-                    >
-                      {selectedAvatar.emoji}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5 text-[10px] font-mono tracking-widest uppercase text-[#ff7a00] font-bold">
-                        <Ticket className="w-3 h-3" />
-                        <span>Cinema Persona</span>
-                      </div>
-                      <h4 className="font-display text-sm sm:text-base font-bold text-white tracking-tight truncate">
-                        {displayName.trim() || 'Your Cinema Name'}
-                      </h4>
-                      <p className="text-xs text-[#9aa6af] truncate">
-                        {selectedAvatar.name} • {selectedGenres.slice(0, 2).join(', ') || 'All Movies'}
-                      </p>
-                    </div>
-                  </div>
-
                   {/* Choose Cinema Avatar Persona */}
                   <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-[#9aa6af] mb-2 flex items-center justify-between">
-                      <span>Choose Avatar Persona</span>
-                      <span className="text-[11px] text-[#ff7a00] font-mono">{selectedAvatar.name}</span>
-                    </label>
-                    <div className="grid grid-cols-6 gap-2">
+                    <div className="flex items-center justify-between mb-2.5">
+                      <label className="text-xs font-bold uppercase tracking-wider text-[#9aa6af] flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-[#ff7a00]" />
+                        <span>Avatar Persona</span>
+                      </label>
+                      <span className="text-[11px] font-mono font-bold text-[#ff7a00] bg-[#ff7a00]/10 border border-[#ff7a00]/30 px-2.5 py-0.5 rounded-full">
+                        {selectedAvatar.name}
+                      </span>
+                    </div>
+
+                    {/* Circular Avatar Tokens */}
+                    <div className="flex items-center justify-between gap-1 sm:gap-2 p-3 rounded-2xl bg-[#080d10] border border-white/5">
                       {AVATAR_OPTIONS.map((avatar) => {
                         const isSelected = selectedAvatarId === avatar.id;
                         return (
@@ -310,22 +296,27 @@ export default function AuthModal({
                             type="button"
                             key={avatar.id}
                             onClick={() => setSelectedAvatarId(avatar.id)}
-                            className={`relative flex flex-col items-center justify-center p-2 rounded-xl border transition-all duration-200 ${
-                              isSelected
-                                ? 'bg-[#1b2229] border-[#ff7a00] scale-105 shadow-glow-orange z-10'
-                                : 'bg-[#080d10] border-white/5 hover:border-white/20 opacity-70 hover:opacity-100 hover:scale-105'
-                            }`}
+                            title={avatar.name}
+                            className="group relative flex flex-col items-center focus:outline-none transition-transform"
                           >
                             <div
-                              className={`w-9 h-9 rounded-full ${avatar.bg} flex items-center justify-center text-base shadow-md`}
+                              className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full ${avatar.bg} flex items-center justify-center text-lg sm:text-xl shadow-md transition-all duration-200 ${
+                                isSelected
+                                  ? 'ring-2 ring-[#ff7a00] ring-offset-2 ring-offset-[#080d10] scale-110 shadow-glow-orange'
+                                  : 'opacity-50 group-hover:opacity-100 group-hover:scale-105'
+                              }`}
                             >
                               {avatar.emoji}
                             </div>
-                            <span className="text-[10px] font-bold text-white mt-1.5 truncate max-w-[50px]">
+                            <span
+                              className={`text-[10px] font-medium mt-1.5 transition-colors ${
+                                isSelected ? 'text-[#ff7a00] font-bold' : 'text-[#9aa6af]/70 group-hover:text-white'
+                              }`}
+                            >
                               {avatar.name.split(' ')[0]}
                             </span>
                             {isSelected && (
-                              <div className="absolute -top-1 -right-1 w-4 h-4 bg-[#ff7a00] rounded-full flex items-center justify-center text-white shadow">
+                              <div className="absolute -top-1 -right-0.5 w-4 h-4 bg-[#ff7a00] rounded-full flex items-center justify-center text-white shadow">
                                 <Check className="w-2.5 h-2.5 stroke-[3]" />
                               </div>
                             )}
@@ -335,13 +326,19 @@ export default function AuthModal({
                     </div>
                   </div>
 
-                  {/* Favorite Movie Genres (Click to toggle) */}
+                  {/* Favorite Movie Genres (Airy Tag Cloud) */}
                   <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-[#9aa6af] mb-2 flex items-center gap-1.5">
-                      <Heart className="w-3.5 h-3.5 text-[#ff7a00]" />
-                      <span>Favorite Genres ({selectedGenres.length} selected)</span>
-                    </label>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="flex items-center justify-between mb-2.5">
+                      <label className="text-xs font-bold uppercase tracking-wider text-[#9aa6af] flex items-center gap-1.5">
+                        <Heart className="w-3.5 h-3.5 text-[#ff7a00]" />
+                        <span>Favorite Genres</span>
+                      </label>
+                      <span className="text-[11px] font-mono text-[#9aa6af]">
+                        {selectedGenres.length} selected
+                      </span>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
                       {MOVIE_GENRES.map((genre) => {
                         const isSelected = selectedGenres.includes(genre);
                         return (
@@ -349,18 +346,48 @@ export default function AuthModal({
                             type="button"
                             key={genre}
                             onClick={() => toggleGenre(genre)}
-                            className={`px-3 py-2 rounded-xl text-xs font-bold transition-all text-center truncate ${
+                            className={`px-3 py-1.5 rounded-full text-xs transition-all duration-150 flex items-center gap-1.5 ${
                               isSelected
-                                ? 'bg-[#ff7a00]/20 text-[#ff7a00] border border-[#ff7a00]/50 shadow-glow-orange/30'
-                                : 'bg-[#080d10] text-[#9aa6af] border border-white/5 hover:border-white/20 hover:text-white'
+                                ? 'bg-[#ff7a00]/15 text-[#ff7a00] border border-[#ff7a00]/50 shadow-glow-orange/20 font-semibold'
+                                : 'bg-white/[0.04] text-[#9aa6af] hover:text-white hover:bg-white/[0.08] border border-white/10'
                             }`}
-                            title={genre}
                           >
-                            {genre}
+                            <span
+                              className={`w-1.5 h-1.5 rounded-full ${
+                                isSelected ? 'bg-[#ff7a00]' : 'bg-white/20'
+                              }`}
+                            />
+                            <span>{genre}</span>
                           </button>
                         );
                       })}
                     </div>
+                  </div>
+
+                  {/* Live Cinema Pass Summary Strip */}
+                  <div className="p-3.5 rounded-2xl bg-[#080d10] border border-white/10 flex items-center justify-between shadow-sm">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div
+                        className={`w-10 h-10 rounded-full ${selectedAvatar.bg} flex items-center justify-center text-lg shadow-sm shrink-0 border border-white/20`}
+                      >
+                        {selectedAvatar.emoji}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 text-[9px] font-mono tracking-widest uppercase text-[#ff7a00] font-bold">
+                          <Ticket className="w-3 h-3" />
+                          <span>Live Cinema Pass</span>
+                        </div>
+                        <div className="font-display text-xs sm:text-sm font-bold text-white tracking-tight truncate">
+                          {displayName.trim() || 'Your Display Name'}
+                        </div>
+                        <div className="text-[10px] text-[#9aa6af] truncate">
+                          {selectedAvatar.name} • {selectedGenres.slice(0, 2).join(', ') || 'All Movies'}
+                        </div>
+                      </div>
+                    </div>
+                    <span className="text-[9px] font-mono text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full shrink-0">
+                      P2P READY
+                    </span>
                   </div>
                 </>
               ) : (
