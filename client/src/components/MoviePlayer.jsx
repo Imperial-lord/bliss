@@ -1,98 +1,26 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import {
-  Play,
-  Pause,
-  Volume2,
-  VolumeX,
-  Maximize,
-  Minimize,
-  Film,
-  Radio,
-  Sparkles,
-  Subtitles,
-  Link as LinkIcon,
-  AlertCircle,
-  Loader2,
-  Check,
-  RotateCcw,
-  RotateCw,
-  Lock,
-  Clock,
-  Tv
-} from 'lucide-react';
-import { SERVER_URL } from '../config/webrtc';
+import { Film, Radio, Loader2 } from 'lucide-react';
+import { cleanMovieTitle } from '../utils/moviePlayerUtils';
+import { usePlayerSubtitles } from '../hooks/usePlayerSubtitles';
+import { useRemotePlaybackSync } from '../hooks/useRemotePlaybackSync';
+import { usePlayerHotkeys } from '../hooks/usePlayerHotkeys';
+import PlayerIdleView from './movie-player/PlayerIdleView';
+import PlayerBufferingView from './movie-player/PlayerBufferingView';
+import PlayerControls from './movie-player/PlayerControls';
+import PlayerSubtitleOverlay from './movie-player/PlayerSubtitleOverlay';
+import PlayerFeedbackToasts from './movie-player/PlayerFeedbackToasts';
+import PlayerStagingOverlay from './movie-player/PlayerStagingOverlay';
+import CueMovieModal from './movie-player/CueMovieModal';
+import ReactionOverlay from './movie-player/ReactionOverlay';
+
+// Re-export cleanMovieTitle for backward compatibility
+export { cleanMovieTitle };
 
 /**
- * Formats messy torrent file and release names into clean, human-readable movie titles.
- * E.g. "The.Dark.Knight.2008.720p.BluRay.x264.YIFY.mp4" -> "The Dark Knight (2008)"
+ * Main Synchronized Movie Player component for Bliss Cinema.
+ * Handles torrent video streams, WebVTT subtitle synchronization,
+ * authoritative host controls, and peer synchronization.
  */
-export function cleanMovieTitle(raw) {
-  if (!raw || typeof raw !== 'string') return 'Cinema Stream';
-
-  let clean = raw.replace(/\.(mp4|mkv|avi|webm|mov|m4v|flv)$/i, '');
-  clean = clean.replace(/\[[^\]]*\]/g, ' ');
-
-  const parenYear = clean.match(/(.*?)\s*\((19\d{2}|20\d{2})\).*/i);
-  if (parenYear && parenYear[1].trim().length > 0) {
-    const title = parenYear[1].replace(/[._+]/g, ' ').replace(/\s+/g, ' ').trim();
-    return `${title} (${parenYear[2]})`;
-  }
-
-  clean = clean.replace(/[._+]/g, ' ');
-  const yearMatch = clean.match(/\b(19\d{2}|20\d{2})\b/);
-  if (yearMatch) {
-    const year = yearMatch[1];
-    let titlePart = clean.slice(0, yearMatch.index).replace(/[()]/g, '').trim();
-    titlePart = titlePart.replace(/\s+/g, ' ');
-    if (titlePart.length > 0) {
-      return `${titlePart} (${year})`;
-    }
-  }
-
-  const tagsRegex = /\b(720p|1080p|2160p|4k|bluray|brrip|bdrip|webrip|web-dl|webdl|dvdrip|hdrip|x264|x265|hevc|h264|yify|yts|sparks|rarbg|galaxy|aac|ac3|dts|remastered|extended|directors cut|unrated)\b.*/i;
-  clean = clean.replace(tagsRegex, '').replace(/\s+/g, ' ').trim();
-  return clean || raw;
-}
-
-/**
- * Robust WebVTT subtitle parser.
- * Converts WebVTT cue blocks into structured { start, end, text } timestamps in seconds.
- */
-function parseVttToCues(vttText) {
-  if (!vttText || typeof vttText !== 'string') return [];
-  const cues = [];
-  const timeRegex = /(?:(\d{2}):)?(\d{2}):(\d{2})[.,](\d{3})\s*-->\s*(?:(\d{2}):)?(\d{2}):(\d{2})[.,](\d{3})/;
-
-  const parseSeconds = (h, m, s, ms) => {
-    return (
-      parseInt(h || '0', 10) * 3600 +
-      parseInt(m, 10) * 60 +
-      parseInt(s, 10) +
-      parseInt(ms, 10) / 1000
-    );
-  };
-
-  const blocks = vttText.split(/\n\s*\n/);
-  for (const block of blocks) {
-    const lines = block.trim().split('\n');
-    for (let i = 0; i < lines.length; i++) {
-      const match = lines[i].match(timeRegex);
-      if (match) {
-        const start = parseSeconds(match[1], match[2], match[3], match[4]);
-        const end = parseSeconds(match[5], match[6], match[7], match[8]);
-        const text = lines
-          .slice(i + 1)
-          .join('\n')
-          .replace(/<[^>]+>/g, '')
-          .trim();
-        if (text) cues.push({ start, end, text });
-        break;
-      }
-    }
-  }
-  return cues;
-}
-
 export default function MoviePlayer({
   roomId,
   isHost = false,
@@ -115,8 +43,6 @@ export default function MoviePlayer({
   const [duration, setDuration] = useState(0);
   const [selectedSubIndex, setSelectedSubIndex] = useState(0);
   const [showSubtitles, setShowSubtitles] = useState(true);
-  const [cues, setCues] = useState([]);
-  const [currentCue, setCurrentCue] = useState('');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [hasStartedPlayback, setHasStartedPlayback] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
@@ -131,7 +57,6 @@ export default function MoviePlayer({
   const controlsTimeoutRef = useRef(null);
   const feedbackTimeoutRef = useRef(null);
 
-  // Formatted human-readable cinema title
   const displayTitle = cleanMovieTitle(mediaTitle);
 
   // Trigger brief visual feedback overlay (play, pause, +/-10s, volume)
@@ -147,8 +72,6 @@ export default function MoviePlayer({
   useEffect(() => {
     if (mediaStatus !== 'ready') {
       setHasStartedPlayback(false);
-      setCues([]);
-      setCurrentCue('');
     }
   }, [mediaStatus]);
 
@@ -159,54 +82,15 @@ export default function MoviePlayer({
     }
   }, [isPlaying]);
 
-  // Fetch and parse WebVTT subtitle track
-  useEffect(() => {
-    if (!subtitles || subtitles.length === 0 || mediaStatus !== 'ready') {
-      setCues([]);
-      setCurrentCue('');
-      return;
-    }
-
-    const subUrl = `/api/subtitles/${roomId}/${selectedSubIndex}.vtt`;
-    let isCancelled = false;
-
-    fetch(subUrl)
-      .then((res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.text();
-      })
-      .then((vttText) => {
-        if (isCancelled) return;
-        const parsed = parseVttToCues(vttText);
-        setCues(parsed);
-      })
-      .catch((err) => {
-        if (!isCancelled) {
-          console.warn('[Subtitles Load Warning]:', err.message);
-          setCues([]);
-        }
-      });
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [roomId, selectedSubIndex, subtitles, mediaStatus]);
-
-  // Compute active subtitle text from currentTime
-  useEffect(() => {
-    if (!showSubtitles || cues.length === 0) {
-      if (currentCue) setCurrentCue('');
-      return;
-    }
-
-    const active = cues.find(
-      (cue) => currentTime >= cue.start && currentTime <= cue.end
-    );
-    const newText = active ? active.text : '';
-    if (newText !== currentCue) {
-      setCurrentCue(newText);
-    }
-  }, [currentTime, cues, showSubtitles, currentCue]);
+  // Subtitle synchronization hook
+  const { currentCue } = usePlayerSubtitles({
+    roomId,
+    selectedSubIndex,
+    subtitles,
+    mediaStatus,
+    showSubtitles,
+    currentTime
+  });
 
   // Auto-hide control bar on idle during playback
   const handleMouseMove = () => {
@@ -256,76 +140,16 @@ export default function MoviePlayer({
     }
   }, []);
 
-  // Sync peer video with host authoritative remote playback
-  useEffect(() => {
-    if (isHost || !remotePlayback || !videoRef.current) return;
-
-    const { action, currentTime: targetTime, updatedAt } = remotePlayback;
-
-    if (action === 'play') {
-      const elapsed = Math.max(0, (Date.now() - updatedAt) / 1000);
-      const expectedTime = targetTime + elapsed;
-
-      if (Math.abs(videoRef.current.currentTime - expectedTime) > 0.8) {
-        videoRef.current.currentTime = expectedTime;
-      }
-      videoRef.current
-        .play()
-        .then(() => {
-          setIsPlaying(true);
-          setHasStartedPlayback(true);
-        })
-        .catch((err) => {
-          if (err.name === 'NotAllowedError') {
-            // Autoplay blocked: mute and retry smoothly
-            if (videoRef.current) {
-              videoRef.current.muted = true;
-              setIsMuted(true);
-              setShowAutoplayMutedHint(true);
-              videoRef.current
-                .play()
-                .then(() => {
-                  setIsPlaying(true);
-                  setHasStartedPlayback(true);
-                })
-                .catch(console.warn);
-            }
-          } else if (err.name !== 'AbortError') {
-            console.warn('[Peer Playback Error]:', err);
-          }
-        });
-    } else if (action === 'pause') {
-      videoRef.current.pause();
-      setIsPlaying(false);
-      if (typeof targetTime === 'number') {
-        videoRef.current.currentTime = targetTime;
-      }
-    } else if (action === 'seek') {
-      if (typeof targetTime === 'number') {
-        videoRef.current.currentTime = targetTime;
-      }
-    }
-  }, [remotePlayback, isHost]);
-
-  // Periodic drift correction for non-host peers
-  useEffect(() => {
-    if (isHost || !videoRef.current || !remotePlayback || remotePlayback.action !== 'play') return;
-
-    const interval = setInterval(() => {
-      if (!videoRef.current || videoRef.current.paused) return;
-
-      const elapsed = Math.max(0, (Date.now() - remotePlayback.updatedAt) / 1000);
-      const expected = remotePlayback.currentTime + elapsed;
-      const drift = Math.abs(videoRef.current.currentTime - expected);
-
-      if (drift > 1.2) {
-        console.log(`[Cinema Sync] Correcting drift (${drift.toFixed(2)}s) to ${expected.toFixed(2)}s`);
-        videoRef.current.currentTime = expected;
-      }
-    }, 3000);
-
-    return () => clearInterval(interval);
-  }, [remotePlayback, isHost]);
+  // Peer remote playback sync hook
+  useRemotePlaybackSync({
+    isHost,
+    remotePlayback,
+    videoRef,
+    setIsPlaying,
+    setHasStartedPlayback,
+    setIsMuted,
+    setShowAutoplayMutedHint
+  });
 
   // Host: Toggle Play/Pause with async race protection
   const togglePlay = useCallback(async () => {
@@ -362,7 +186,7 @@ export default function MoviePlayer({
         playPromiseRef.current = null;
       }
     }
-  }, [isHost, isPlaying, onSyncPlayback, triggerToast]);
+  }, [isHost, isPlaying, onSyncPlayback]);
 
   // Host: Seek scrubber timeline
   const handleSeek = (e) => {
@@ -400,7 +224,7 @@ export default function MoviePlayer({
     videoRef.current.muted = !videoRef.current.muted;
     setIsMuted(videoRef.current.muted);
     triggerToast({
-      type: videoRef.current.muted ? 'volume' : 'volume',
+      type: 'volume',
       text: videoRef.current.muted ? 'Muted' : `${Math.round(videoRef.current.volume * 100)}%`
     });
   }, [triggerToast]);
@@ -426,126 +250,25 @@ export default function MoviePlayer({
     [triggerToast]
   );
 
-  // KEYBOARD SHORTCUTS CONTROLLER
-  useEffect(() => {
-    if (mediaStatus !== 'ready') return;
-
-    const handleKeyDown = (e) => {
-      // Do not capture keyboard shortcuts if user is actively typing in an input field or textarea
-      const target = e.target;
-      if (
-        target &&
-        (target.tagName === 'INPUT' ||
-          target.tagName === 'TEXTAREA' ||
-          target.isContentEditable ||
-          target.getAttribute('role') === 'textbox')
-      ) {
-        return;
-      }
-
-      // Spacebar or 'k': Toggle Play / Pause
-      if (e.code === 'Space' || e.key === ' ' || e.key.toLowerCase() === 'k') {
-        e.preventDefault();
-        if (isHost) {
-          togglePlay();
-        } else {
-          triggerToast({ type: 'locked', text: 'Host controls playback' });
-        }
-        return;
-      }
-
-      // Left Arrow or 'j': Seek -10s
-      if (e.code === 'ArrowLeft' || e.key.toLowerCase() === 'j') {
-        e.preventDefault();
-        if (isHost) {
-          seekByOffset(-10);
-        } else {
-          triggerToast({ type: 'locked', text: 'Host controls playback' });
-        }
-        return;
-      }
-
-      // Right Arrow or 'l': Seek +10s
-      if (e.code === 'ArrowRight' || e.key.toLowerCase() === 'l') {
-        e.preventDefault();
-        if (isHost) {
-          seekByOffset(10);
-        } else {
-          triggerToast({ type: 'locked', text: 'Host controls playback' });
-        }
-        return;
-      }
-
-      // Up Arrow: Volume Up (+10%)
-      if (e.code === 'ArrowUp') {
-        e.preventDefault();
-        adjustVolume(0.1);
-        return;
-      }
-
-      // Down Arrow: Volume Down (-10%)
-      if (e.code === 'ArrowDown') {
-        e.preventDefault();
-        adjustVolume(-0.1);
-        return;
-      }
-
-      // 'm': Toggle Mute
-      if (e.key.toLowerCase() === 'm') {
-        e.preventDefault();
-        toggleMute();
-        return;
-      }
-
-      // 'f': Toggle Fullscreen
-      if (e.key.toLowerCase() === 'f') {
-        e.preventDefault();
-        handleFullscreen();
-        return;
-      }
-
-      // 'c': Toggle Captions / Subtitles
-      if (e.key.toLowerCase() === 'c') {
-        e.preventDefault();
-        setShowSubtitles((prev) => !prev);
-        triggerToast({
-          type: 'volume',
-          text: !showSubtitles ? 'Subtitles On' : 'Subtitles Off'
-        });
-        return;
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [
+  // Global Keyboard Shortcuts Controller Hook
+  usePlayerHotkeys({
     mediaStatus,
     isHost,
-    showSubtitles,
     togglePlay,
     seekByOffset,
     adjustVolume,
     toggleMute,
     handleFullscreen,
+    setShowSubtitles,
+    showSubtitles,
     triggerToast
-  ]);
+  });
 
   const handleTimeUpdate = () => {
     if (videoRef.current) {
       setCurrentTime(videoRef.current.currentTime);
       setDuration(videoRef.current.duration || 0);
     }
-  };
-
-  const formatTime = (secs) => {
-    if (isNaN(secs)) return '00:00';
-    const h = Math.floor(secs / 3600);
-    const m = Math.floor((secs % 3600) / 60);
-    const s = Math.floor(secs % 60);
-    if (h > 0) {
-      return `${h}:${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
-    }
-    return `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
   const handleCueSubmit = (e) => {
@@ -560,7 +283,6 @@ export default function MoviePlayer({
     setTimeout(() => setIsCueing(false), 2000);
   };
 
-  // Stream source endpoint
   const streamSrc = `/api/stream/${roomId}`;
 
   return (
@@ -571,149 +293,30 @@ export default function MoviePlayer({
         isFullscreen ? 'rounded-0' : 'rounded-3xl'
       } overflow-hidden border border-white/10 shadow-2xl flex flex-col justify-center items-center group font-sans select-none`}
     >
-      {/* ========================================================================= */}
-      {/* 1. IDLE STATE: WAITING FOR HOST / CUE MOVIE STAGE */}
-      {/* ========================================================================= */}
+      {/* 1. IDLE STATE */}
       {mediaStatus === 'idle' && (
-        <div className="relative w-full h-full flex flex-col items-center justify-center p-6 text-center overflow-y-auto">
-          {/* Subtle Ambient Background Gradients */}
-          <div className="absolute w-[450px] h-[300px] bg-gradient-to-tr from-[#ff7a00]/15 to-[#ff3d2e]/10 blur-[130px] pointer-events-none rounded-full" />
-
-          {isHost ? (
-            /* HOST CUE FORM */
-            <div className="relative z-10 max-w-lg w-full bg-[#12171c]/90 border border-white/10 rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur-md">
-              <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-[#ff7a00]/15 text-[#ff7a00] text-[10px] font-bold uppercase tracking-widest mb-3 border border-[#ff7a00]/30 shadow-glow-orange">
-                <Sparkles className="w-3 h-3" />
-                <span>Host Cinema Authority</span>
-              </div>
-
-              <h3 className="font-display text-2xl font-extrabold text-white tracking-tight mb-2">
-                Cue Torrent Movie Stream
-              </h3>
-              <p className="text-xs text-[#9aa6af] mb-5 leading-relaxed">
-                Provide a torrent download URL or magnet link. Our backend will fetch the swarm, extract the movie, and stream it in real-time sync with all viewers.
-              </p>
-
-              {/* Host-Only Error Alert Banner */}
-              {hostErrorMessage && (
-                <div className="mb-5 p-3.5 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-medium flex items-start gap-2.5 text-left animate-fade-in">
-                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                  <div className="flex-1">
-                    <span className="font-bold block mb-0.5">Stream Error (Host Only)</span>
-                    <span>{hostErrorMessage}</span>
-                  </div>
-                </div>
-              )}
-
-              <form onSubmit={handleCueSubmit} className="space-y-4">
-                <div className="relative">
-                  <LinkIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9aa6af]" />
-                  <input
-                    type="url"
-                    required
-                    value={torrentInput}
-                    onChange={(e) => setTorrentInput(e.target.value)}
-                    placeholder="https://yts.gg/torrent/download/..."
-                    className="w-full h-12 pl-10 pr-4 rounded-xl bg-[#080d10] border border-white/10 text-white placeholder-[#9aa6af]/40 focus:outline-none focus:border-[#ff7a00] focus:ring-2 focus:ring-[#ff7a00]/20 text-xs font-mono transition-all"
-                  />
-                </div>
-
-                <div className="flex items-center justify-between text-[11px] text-[#9aa6af]">
-                  <span>Supports .torrent URLs & magnet:?xt=</span>
-                  <button
-                    type="button"
-                    onClick={() => setTorrentInput('https://yts.gg/torrent/download/A54926C2E07B0E5F0243954330B599B31C804F0B')}
-                    className="text-[#ff7a00] hover:underline font-mono text-[10px]"
-                  >
-                    Paste Sample Link
-                  </button>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={isCueing || !torrentInput.trim()}
-                  className="w-full h-12 rounded-xl bg-gradient-to-r from-[#ff7a00] to-[#ff3d2e] hover:from-[#ff9124] hover:to-[#ff5244] disabled:opacity-50 text-white font-bold uppercase tracking-wider text-xs flex items-center justify-center gap-2 shadow-glow-orange transition-all hover:scale-[1.01] active:scale-[0.99]"
-                >
-                  <Film className="w-4 h-4" />
-                  <span>Stream Movie For Party</span>
-                </button>
-              </form>
-            </div>
-          ) : (
-            /* PEER WAITING SCREEN (ZERO HOST ERRORS SHOWN) */
-            <div className="relative z-10 max-w-md w-full bg-[#12171c]/70 border border-white/10 rounded-3xl p-8 shadow-2xl backdrop-blur-md flex flex-col items-center">
-              <div className="w-20 h-20 rounded-3xl bg-gradient-to-tr from-[#ff7a00]/20 to-[#ff3d2e]/10 border border-[#ff7a00]/30 flex items-center justify-center text-3xl shadow-glow-orange animate-gentle-float mb-5">
-                🍿
-              </div>
-
-              <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[10px] font-bold uppercase tracking-widest mb-2 border border-emerald-500/30">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                <span>P2P Cinema Standby</span>
-              </div>
-
-              <h3 className="font-display text-2xl font-bold text-white tracking-tight mb-2">
-                Waiting For Host To Cue Movie
-              </h3>
-              <p className="text-xs text-[#9aa6af] leading-relaxed max-w-xs">
-                Sit back with your popcorn. The room host will paste a movie link and start synchronized playback shortly.
-              </p>
-
-              <div className="mt-6 pt-5 border-t border-white/5 flex items-center gap-3 text-[11px] text-[#9aa6af] font-mono">
-                <Radio className="w-3.5 h-3.5 text-[#ff7a00] animate-pulse" />
-                <span>SUB-SECOND SYNC READY</span>
-              </div>
-            </div>
-          )}
-        </div>
+        <PlayerIdleView
+          isHost={isHost}
+          torrentInput={torrentInput}
+          setTorrentInput={setTorrentInput}
+          isCueing={isCueing}
+          hostErrorMessage={hostErrorMessage}
+          onSubmit={handleCueSubmit}
+        />
       )}
 
-      {/* ========================================================================= */}
       {/* 2. BUFFERING / SWARM RESOLUTION STATE */}
-      {/* ========================================================================= */}
-      {['downloading_metadata', 'fetching_torrent_file', 'connecting_swarm', 'buffering_stream'].includes(mediaStatus) && (
-        <div className="relative w-full h-full flex flex-col items-center justify-center p-6 text-center">
-          <div className="relative z-10 max-w-md w-full bg-[#12171c]/90 border border-white/10 rounded-3xl p-8 shadow-2xl backdrop-blur-md flex flex-col items-center">
-            <div className="w-16 h-16 rounded-2xl bg-[#ff7a00]/15 border border-[#ff7a00]/30 flex items-center justify-center text-[#ff7a00] mb-5 shadow-glow-orange animate-pulse">
-              <Loader2 className="w-8 h-8 animate-spin" />
-            </div>
-
-            <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#ff7a00] mb-1.5">
-              P2P Cinema Swarm
-            </span>
-
-            <h3 className="font-display text-xl font-bold text-white tracking-tight mb-2">
-              Buffering Movie Stream...
-            </h3>
-            <p className="text-xs text-[#9aa6af] leading-relaxed max-w-sm mb-6">
-              {mediaMessage || 'Resolving torrent metadata, connecting to seeders, and caching stream headers. Playback will be ready in seconds.'}
-            </p>
-
-            {/* Simulated Audio/Video Equalizer Pulse */}
-            <div className="flex items-center gap-1.5 h-6">
-              {[40, 85, 60, 100, 75, 90, 50, 70, 95, 60].map((h, i) => (
-                <div
-                  key={i}
-                  style={{ height: `${h}%`, animationDelay: `${i * 0.12}s` }}
-                  className="w-1 bg-[#ff7a00] rounded-full animate-pulse"
-                />
-              ))}
-            </div>
-
-            {isHost && (
-              <button
-                onClick={() => onCueMovie && onCueMovie('')}
-                className="mt-6 text-[11px] font-mono text-[#9aa6af] hover:text-white underline underline-offset-4 transition-colors"
-              >
-                Cancel / Change Link
-              </button>
-            )}
-          </div>
-        </div>
+      {['downloading_metadata', 'fetching_torrent_file', 'connecting_swarm', 'buffering_stream'].includes(
+        mediaStatus
+      ) && (
+        <PlayerBufferingView
+          mediaMessage={mediaMessage}
+          isHost={isHost}
+          onCancel={() => onCueMovie && onCueMovie('')}
+        />
       )}
 
-      {/* ========================================================================= */}
-      {/* 3. READY STATE: ACTIVE SYNCHRONIZED HTML5 VIDEO PLAYER */}
-      {/* ========================================================================= */}
+      {/* 3. READY STATE: HTML5 VIDEO PLAYER & CONTROLS */}
       {mediaStatus === 'ready' && (
         <>
           <video
@@ -749,122 +352,35 @@ export default function MoviePlayer({
             </div>
           )}
 
-          {/* Center Feedback Toast for Keyboard & Click Actions */}
-          {feedbackToast && (
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-30 animate-fade-in">
-              <div className="flex flex-col items-center gap-1.5 bg-black/85 backdrop-blur-md px-5 py-3.5 rounded-2xl border border-white/15 text-white shadow-2xl scale-110">
-                {feedbackToast.type === 'forward' && <RotateCw className="w-8 h-8 text-[#ff7a00]" />}
-                {feedbackToast.type === 'backward' && <RotateCcw className="w-8 h-8 text-[#ff7a00]" />}
-                {feedbackToast.type === 'volume' && <Volume2 className="w-8 h-8 text-[#ff7a00]" />}
-                {feedbackToast.type === 'locked' && <Lock className="w-8 h-8 text-amber-400" />}
-                <span className="text-xs font-mono font-bold tracking-wider">{feedbackToast.text}</span>
-              </div>
-            </div>
-          )}
+          {/* Center Feedback Toast & Autoplay Mute Pill */}
+          <PlayerFeedbackToasts
+            feedbackToast={feedbackToast}
+            showAutoplayMutedHint={showAutoplayMutedHint}
+            onUnmuteAutoplay={() => {
+              if (videoRef.current) {
+                videoRef.current.muted = false;
+                setIsMuted(false);
+              }
+              setShowAutoplayMutedHint(false);
+            }}
+          />
 
-          {/* Autoplay Muted Notification Pill for Peers */}
-          {showAutoplayMutedHint && (
-            <div className="absolute bottom-20 right-6 z-30 animate-fade-in">
-              <button
-                onClick={() => {
-                  if (videoRef.current) {
-                    videoRef.current.muted = false;
-                    setIsMuted(false);
-                  }
-                  setShowAutoplayMutedHint(false);
-                }}
-                className="flex items-center gap-2 bg-[#ff7a00] hover:bg-[#ff9124] text-white text-xs font-bold px-4 py-2 rounded-full shadow-glow-orange transition-all hover:scale-105"
-              >
-                <VolumeX className="w-4 h-4 animate-pulse" />
-                <span>Audio Muted by Browser – Click to Unmute</span>
-              </button>
-            </div>
-          )}
+          {/* Custom Cinematic Subtitle Overlay */}
+          <PlayerSubtitleOverlay
+            showSubtitles={showSubtitles}
+            currentCue={currentCue}
+          />
 
-          {/* CUSTOM CINEMATIC SUBTITLE OVERLAY */}
-          {showSubtitles && currentCue && (
-            <div className="absolute bottom-24 left-1/2 -translate-x-1/2 max-w-[85%] z-25 pointer-events-none text-center animate-fade-in">
-              <span className="inline-block bg-black/85 backdrop-blur-md text-white text-sm sm:text-base md:text-xl font-medium px-4 py-2 rounded-xl border border-white/10 shadow-2xl tracking-wide leading-relaxed drop-shadow-md">
-                {currentCue.split('\n').map((line, idx) => (
-                  <React.Fragment key={idx}>
-                    {idx > 0 && <br />}
-                    {line}
-                  </React.Fragment>
-                ))}
-              </span>
-            </div>
-          )}
+          {/* Staging & Pause Overlays */}
+          <PlayerStagingOverlay
+            hasStartedPlayback={hasStartedPlayback}
+            isPlaying={isPlaying}
+            isHost={isHost}
+            displayTitle={displayTitle}
+            onTogglePlay={togglePlay}
+          />
 
-          {/* ========================================================================= */}
-          {/* PLAY / PAUSE OVERLAYS */}
-          {/* ========================================================================= */}
-
-          {/* INITIAL STAGING: Host sees "Start Cinema Playback" ONLY BEFORE first play */}
-          {!hasStartedPlayback && !isPlaying && isHost && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-[3px] z-15 p-6 text-center">
-              <div className="max-w-md w-full bg-[#12171c]/95 border border-[#ff7a00]/30 rounded-3xl p-6 shadow-2xl flex flex-col items-center animate-fade-in">
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#ff7a00]/15 text-[#ff7a00] text-[10px] font-bold uppercase tracking-widest mb-3 border border-[#ff7a00]/30">
-                  <Sparkles className="w-3 h-3" />
-                  <span>Stream Ready</span>
-                </div>
-
-                <h4 className="text-white font-display font-bold text-lg mb-1 truncate max-w-full">
-                  {displayTitle || 'Cinema Stream Ready'}
-                </h4>
-                <p className="text-xs text-[#9aa6af] mb-5">
-                  The movie stream is buffered and ready. Press play below or press Spacebar to start synchronized playback for all peers.
-                </p>
-
-                <button
-                  onClick={togglePlay}
-                  className="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-[#ff7a00] to-[#ff3d2e] hover:from-[#ff9124] hover:to-[#ff5244] text-white text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2.5 shadow-glow-orange transition-all hover:scale-[1.02] active:scale-[0.98]"
-                >
-                  <Play className="w-4 h-4 fill-current" />
-                  <span>Start Cinema Playback</span>
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* INITIAL STAGING: Peer standby card ONLY BEFORE first play */}
-          {!hasStartedPlayback && !isPlaying && !isHost && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 backdrop-blur-[2px] z-15 p-6 text-center pointer-events-none">
-              <div className="max-w-sm w-full bg-[#12171c]/90 border border-white/10 rounded-3xl p-6 shadow-2xl flex flex-col items-center">
-                <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 mb-3">
-                  <Film className="w-6 h-6 animate-pulse" />
-                </div>
-                <h4 className="text-white font-display font-bold text-base mb-1 truncate max-w-full">
-                  {displayTitle || 'Movie Stream Ready'}
-                </h4>
-                <p className="text-xs text-[#9aa6af] leading-relaxed">
-                  The stream is ready on your device. Waiting for the room host to press play.
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* NORMAL PAUSE (AFTER FIRST PLAY): Host sees clean centered play circle (NO INTRUSIVE MODAL) */}
-          {hasStartedPlayback && !isPlaying && isHost && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black/35 backdrop-blur-[1px] z-15 pointer-events-auto">
-              <button
-                onClick={togglePlay}
-                className="w-20 h-20 rounded-full bg-[#ff7a00]/90 hover:bg-[#ff7a00] text-white flex items-center justify-center shadow-glow-orange transition-all hover:scale-110 active:scale-95 cursor-pointer backdrop-blur-md border border-white/20"
-                title="Resume Playback (Space)"
-              >
-                <Play className="w-9 h-9 fill-current ml-1" />
-              </button>
-            </div>
-          )}
-
-          {/* NORMAL PAUSE (AFTER FIRST PLAY): Peer sees subtle top notification pill */}
-          {hasStartedPlayback && !isPlaying && !isHost && (
-            <div className="absolute top-16 left-1/2 -translate-x-1/2 bg-black/75 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-white/10 text-xs font-mono text-[#9aa6af] flex items-center gap-2 pointer-events-none z-20 shadow-lg animate-fade-in">
-              <Pause className="w-3.5 h-3.5 text-[#ff7a00]" />
-              <span>Paused by Room Host</span>
-            </div>
-          )}
-
-          {/* Top Header Badge Overlay (Auto-hides on idle) */}
+          {/* Top Header Badge Overlay */}
           <div
             className={`absolute top-4 left-4 right-4 flex items-center justify-between z-20 pointer-events-none transition-opacity duration-300 ${
               controlsVisible ? 'opacity-100' : 'opacity-0'
@@ -876,7 +392,6 @@ export default function MoviePlayer({
             </div>
 
             <div className="flex items-center gap-2 pointer-events-auto">
-              {/* Host Button to change movie link */}
               {isHost && (
                 <button
                   onClick={() => setShowCueModal(true)}
@@ -893,215 +408,40 @@ export default function MoviePlayer({
             </div>
           </div>
 
-          {/* Cinema Custom Playback Control Bar (Auto-hides on idle) */}
-          <div
-            className={`absolute bottom-4 left-4 right-4 bg-[#12171c]/95 backdrop-blur-xl border border-white/10 px-5 py-3 rounded-2xl flex flex-col gap-2 transition-opacity duration-300 z-20 ${
-              controlsVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
-            }`}
-          >
-            {/* Scrubber Timeline */}
-            <div className="w-full flex items-center gap-3">
-              <span className="text-[10px] font-mono font-medium text-[#9aa6af] w-12">
-                {formatTime(currentTime)}
-              </span>
-              <input
-                type="range"
-                min={0}
-                max={duration || 100}
-                value={currentTime}
-                onChange={handleSeek}
-                disabled={!isHost}
-                className={`flex-1 h-1.5 bg-[#1b2229] rounded-lg appearance-none accent-[#ff7a00] ${
-                  isHost ? 'cursor-pointer' : 'cursor-not-allowed opacity-80'
-                }`}
-                title={isHost ? 'Seek playback' : 'Playback controlled by Host'}
-              />
-              <span className="text-[10px] font-mono font-medium text-[#9aa6af] w-12 text-right">
-                {formatTime(duration)}
-              </span>
-            </div>
-
-            {/* Lower Controls */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5 sm:gap-3">
-                {/* Host -10s Rewind Button */}
-                <button
-                  onClick={() => seekByOffset(-10)}
-                  disabled={!isHost}
-                  className={`h-8 px-2.5 rounded-lg transition-all flex items-center gap-1.5 border border-white/10 bg-[#080d10]/70 ${
-                    isHost
-                      ? 'text-[#9aa6af] hover:text-white hover:border-[#ff7a00]/40 hover:bg-[#12171c] cursor-pointer active:scale-95'
-                      : 'text-[#9aa6af]/30 border-transparent cursor-not-allowed'
-                  }`}
-                  title={isHost ? 'Rewind 10s (Left Arrow / J)' : 'Playback controlled by Host'}
-                >
-                  <RotateCcw className="w-3.5 h-3.5 text-[#ff7a00] shrink-0" />
-                  <span className="text-[11px] font-mono font-bold text-white/90 leading-none">10s</span>
-                </button>
-
-                {/* Play/Pause Button (Host authorized, peer indicator) */}
-                <button
-                  onClick={togglePlay}
-                  disabled={!isHost}
-                  className={`h-7 w-7 rounded-md flex items-center justify-center transition-all ${
-                    isHost
-                      ? 'bg-gradient-to-r from-[#ff7a00] to-[#ff3d2e] hover:from-[#ff9124] hover:to-[#ff5244] text-white shadow-glow-orange cursor-pointer active:scale-90'
-                      : 'bg-white/5 text-white/30 cursor-not-allowed'
-                  }`}
-                  title={isHost ? (isPlaying ? 'Pause (Space / K)' : 'Play (Space / K)') : 'Playback controlled by Host'}
-                >
-                  {isPlaying ? (
-                    <Pause className="w-2.5 h-2.5 fill-current" />
-                  ) : (
-                    <Play className="w-2.5 h-2.5 fill-current ml-0.5" />
-                  )}
-                </button>
-
-                {/* Host +10s Forward Button */}
-                <button
-                  onClick={() => seekByOffset(10)}
-                  disabled={!isHost}
-                  className={`h-8 px-2.5 rounded-lg transition-all flex items-center gap-1.5 border border-white/10 bg-[#080d10]/70 ${
-                    isHost
-                      ? 'text-[#9aa6af] hover:text-white hover:border-[#ff7a00]/40 hover:bg-[#12171c] cursor-pointer active:scale-95'
-                      : 'text-[#9aa6af]/30 border-transparent cursor-not-allowed'
-                  }`}
-                  title={isHost ? 'Forward 10s (Right Arrow / L)' : 'Playback controlled by Host'}
-                >
-                  <span className="text-[11px] font-mono font-bold text-white/90 leading-none">10s</span>
-                  <RotateCw className="w-3.5 h-3.5 text-[#ff7a00] shrink-0" />
-                </button>
-
-                <div className="h-4 w-[1px] bg-white/10 mx-0.5" />
-
-                {/* Local Volume Toggle */}
-                <button
-                  onClick={toggleMute}
-                  className="p-1.5 hover:text-[#ff7a00] text-white transition-colors cursor-pointer active:scale-90"
-                  title="Toggle Local Audio (M)"
-                >
-                  {isMuted ? <VolumeX className="w-5 h-5 text-red-400" /> : <Volume2 className="w-5 h-5" />}
-                </button>
-
-                {/* Subtitles Toggle & Track Selector */}
-                {subtitles.length > 0 && (
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      onClick={() => setShowSubtitles((prev) => !prev)}
-                      className={`p-1.5 transition-colors cursor-pointer active:scale-90 ${
-                        showSubtitles ? 'text-[#ff7a00]' : 'text-[#9aa6af] hover:text-white'
-                      }`}
-                      title="Toggle Captions (C)"
-                    >
-                      <Subtitles className="w-5 h-5" />
-                    </button>
-
-                    {subtitles.length > 1 && showSubtitles && (
-                      <select
-                        value={selectedSubIndex}
-                        onChange={(e) => setSelectedSubIndex(parseInt(e.target.value, 10))}
-                        className="bg-[#080d10] text-[#9aa6af] hover:text-white border border-white/10 rounded-lg text-[10px] font-mono px-2 py-1 outline-none focus:border-[#ff7a00] cursor-pointer"
-                      >
-                        {subtitles.map((s) => (
-                          <option key={s.index} value={s.index}>
-                            {s.name}
-                          </option>
-                        ))}
-                      </select>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Status & Custom Fullscreen Toggle */}
-              <div className="flex items-center gap-2.5">
-                <span
-                  className={`hidden sm:inline-block text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border ${
-                    isHost
-                      ? 'bg-[#ff7a00]/15 text-[#ff7a00] border-[#ff7a00]/30 shadow-glow-orange/20'
-                      : 'bg-[#080d10] text-[#9aa6af] border-white/5'
-                  }`}
-                >
-                  {isHost ? 'Host Controls Active' : 'Synced With Host'}
-                </span>
-
-                <button
-                  onClick={handleFullscreen}
-                  className="p-1.5 hover:text-[#ff7a00] text-white transition-colors cursor-pointer active:scale-90"
-                  title={isFullscreen ? 'Exit Fullscreen (F)' : 'Fullscreen (F)'}
-                >
-                  {isFullscreen ? (
-                    <Minimize className="w-5 h-5" />
-                  ) : (
-                    <Maximize className="w-5 h-5" />
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
+          {/* Playback Control Bar */}
+          <PlayerControls
+            controlsVisible={controlsVisible}
+            currentTime={currentTime}
+            duration={duration}
+            onSeek={handleSeek}
+            isHost={isHost}
+            isPlaying={isPlaying}
+            onTogglePlay={togglePlay}
+            onSeekByOffset={seekByOffset}
+            isMuted={isMuted}
+            onToggleMute={toggleMute}
+            subtitles={subtitles}
+            showSubtitles={showSubtitles}
+            onToggleSubtitles={() => setShowSubtitles((prev) => !prev)}
+            selectedSubIndex={selectedSubIndex}
+            onSelectSubIndex={setSelectedSubIndex}
+            isFullscreen={isFullscreen}
+            onToggleFullscreen={handleFullscreen}
+          />
         </>
       )}
 
-      {/* ========================================================================= */}
-      {/* FLOATING EMOJI REACTIONS OVERLAY */}
-      {/* ========================================================================= */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden z-30">
-        {reactions.map((r) => (
-          <div
-            key={r.id}
-            className="absolute bottom-20 right-12 animate-float-reaction flex items-center gap-1.5 bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 shadow-glow-orange"
-            style={{
-              right: `${Math.min(75, 10 + Math.random() * 60)}%`
-            }}
-          >
-            <span className="text-2xl animate-bounce">{r.emoji}</span>
-            <span className="text-[11px] font-bold text-white">{r.senderName}</span>
-          </div>
-        ))}
-      </div>
+      {/* Floating Emoji Reactions Overlay */}
+      <ReactionOverlay reactions={reactions} />
 
-      {/* ========================================================================= */}
-      {/* HOST CHANGE MOVIE MODAL */}
-      {/* ========================================================================= */}
-      {showCueModal && isHost && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
-          <div className="relative w-full max-w-lg bg-[#12171c] border border-white/10 rounded-3xl p-6 sm:p-8 shadow-2xl">
-            <h3 className="font-display text-xl font-bold text-white mb-2">
-              Cue New Torrent Stream
-            </h3>
-            <p className="text-xs text-[#9aa6af] mb-4">
-              Enter a new torrent URL or magnet link. The current stream will be replaced for all peers.
-            </p>
-
-            <form onSubmit={handleCueSubmit} className="space-y-4">
-              <input
-                type="url"
-                required
-                value={torrentInput}
-                onChange={(e) => setTorrentInput(e.target.value)}
-                placeholder="https://yts.gg/torrent/download/..."
-                className="w-full h-11 px-4 rounded-xl bg-[#080d10] border border-white/10 text-white placeholder-[#9aa6af]/40 focus:outline-none focus:border-[#ff7a00] text-xs font-mono"
-              />
-
-              <div className="flex gap-2.5 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowCueModal(false)}
-                  className="flex-1 py-2.5 px-3 rounded-xl bg-white/5 hover:bg-white/10 text-[#9aa6af] hover:text-white border border-white/10 text-xs font-bold uppercase tracking-wider cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 py-2.5 px-3 rounded-xl bg-gradient-to-r from-[#ff7a00] to-[#ff3d2e] text-white text-xs font-bold uppercase tracking-wider shadow-glow-orange cursor-pointer"
-                >
-                  Stream New Movie
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* Host Change Movie Modal */}
+      <CueMovieModal
+        isOpen={showCueModal && isHost}
+        onClose={() => setShowCueModal(false)}
+        torrentInput={torrentInput}
+        setTorrentInput={setTorrentInput}
+        onSubmit={handleCueSubmit}
+      />
     </div>
   );
 }
