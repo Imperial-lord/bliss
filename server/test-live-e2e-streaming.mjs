@@ -53,10 +53,12 @@ async function runLiveE2ETest() {
   });
 
   // Step 2: Join room as authenticated host
+  const testUserId = `e2e_tester_${Date.now()}`;
   const joinResponse = await new Promise((resolve, reject) => {
     socket.emit('join-room', {
       roomId: TEST_ROOM_ID,
-      userId: `e2e_tester_${Date.now()}`,
+      userId: testUserId,
+      idToken: `test_id_token_${testUserId}`,
       userName: 'E2E Cinema Bot',
       avatarId: 'cyber-rebel',
       audioEnabled: true,
