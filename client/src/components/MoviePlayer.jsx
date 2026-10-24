@@ -720,8 +720,8 @@ export default function MoviePlayer({
           {feedbackToast && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-30 animate-fade-in">
               <div className="flex flex-col items-center gap-1.5 bg-black/85 backdrop-blur-md px-5 py-3.5 rounded-2xl border border-white/15 text-white shadow-2xl scale-110">
-                {feedbackToast.type === 'forward' && <RotateCw className="w-8 h-8 text-[#ff7a00] animate-spin-once" />}
-                {feedbackToast.type === 'backward' && <RotateCcw className="w-8 h-8 text-[#ff7a00] animate-spin-once" />}
+                {feedbackToast.type === 'forward' && <RotateCw className="w-8 h-8 text-[#ff7a00]" />}
+                {feedbackToast.type === 'backward' && <RotateCcw className="w-8 h-8 text-[#ff7a00]" />}
                 {feedbackToast.type === 'volume' && <Volume2 className="w-8 h-8 text-[#ff7a00]" />}
                 {feedbackToast.type === 'play' && <Play className="w-8 h-8 text-[#ff7a00] fill-current" />}
                 {feedbackToast.type === 'pause' && <Pause className="w-8 h-8 text-[#ff7a00] fill-current" />}
@@ -897,32 +897,32 @@ export default function MoviePlayer({
                 <button
                   onClick={() => seekByOffset(-10)}
                   disabled={!isHost}
-                  className={`p-1.5 transition-colors relative flex items-center justify-center ${
+                  className={`h-8 px-2.5 rounded-lg transition-all flex items-center gap-1.5 border border-white/10 bg-[#080d10]/70 ${
                     isHost
-                      ? 'text-white hover:text-[#ff7a00] cursor-pointer active:scale-90'
-                      : 'text-white/40 cursor-not-allowed'
+                      ? 'text-[#9aa6af] hover:text-white hover:border-[#ff7a00]/40 hover:bg-[#12171c] cursor-pointer active:scale-95'
+                      : 'text-[#9aa6af]/30 border-transparent cursor-not-allowed'
                   }`}
                   title={isHost ? 'Rewind 10s (Left Arrow / J)' : 'Playback controlled by Host'}
                 >
-                  <RotateCcw className="w-4 h-4" />
-                  <span className="text-[8px] font-mono font-bold absolute -bottom-0.5">10</span>
+                  <RotateCcw className="w-3.5 h-3.5 text-[#ff7a00] shrink-0" />
+                  <span className="text-[11px] font-mono font-bold text-white/90 leading-none">10s</span>
                 </button>
 
                 {/* Play/Pause Button (Host authorized, peer indicator) */}
                 <button
                   onClick={togglePlay}
                   disabled={!isHost}
-                  className={`p-1.5 transition-colors ${
+                  className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${
                     isHost
-                      ? 'text-white hover:text-[#ff7a00] cursor-pointer active:scale-90'
-                      : 'text-white/60 cursor-not-allowed'
+                      ? 'bg-gradient-to-r from-[#ff7a00] to-[#ff3d2e] hover:from-[#ff9124] hover:to-[#ff5244] text-white shadow-glow-orange cursor-pointer active:scale-95'
+                      : 'bg-white/5 text-white/40 cursor-not-allowed'
                   }`}
                   title={isHost ? (isPlaying ? 'Pause (Space / K)' : 'Play (Space / K)') : 'Playback controlled by Host'}
                 >
                   {isPlaying ? (
-                    <Pause className="w-5 h-5 fill-current" />
+                    <Pause className="w-4 h-4 fill-current" />
                   ) : (
-                    <Play className="w-5 h-5 fill-current" />
+                    <Play className="w-4 h-4 fill-current ml-0.5" />
                   )}
                 </button>
 
@@ -930,15 +930,15 @@ export default function MoviePlayer({
                 <button
                   onClick={() => seekByOffset(10)}
                   disabled={!isHost}
-                  className={`p-1.5 transition-colors relative flex items-center justify-center ${
+                  className={`h-8 px-2.5 rounded-lg transition-all flex items-center gap-1.5 border border-white/10 bg-[#080d10]/70 ${
                     isHost
-                      ? 'text-white hover:text-[#ff7a00] cursor-pointer active:scale-90'
-                      : 'text-white/40 cursor-not-allowed'
+                      ? 'text-[#9aa6af] hover:text-white hover:border-[#ff7a00]/40 hover:bg-[#12171c] cursor-pointer active:scale-95'
+                      : 'text-[#9aa6af]/30 border-transparent cursor-not-allowed'
                   }`}
                   title={isHost ? 'Forward 10s (Right Arrow / L)' : 'Playback controlled by Host'}
                 >
-                  <RotateCw className="w-4 h-4" />
-                  <span className="text-[8px] font-mono font-bold absolute -bottom-0.5">10</span>
+                  <span className="text-[11px] font-mono font-bold text-white/90 leading-none">10s</span>
+                  <RotateCw className="w-3.5 h-3.5 text-[#ff7a00] shrink-0" />
                 </button>
 
                 <div className="h-4 w-[1px] bg-white/10 mx-0.5" />
