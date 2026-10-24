@@ -912,7 +912,7 @@ export default function MoviePlayer({
                 <button
                   onClick={togglePlay}
                   disabled={!isHost}
-                  className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${
+                  className={`h-8 px-3 rounded-lg flex items-center justify-center transition-all ${
                     isHost
                       ? 'bg-gradient-to-r from-[#ff7a00] to-[#ff3d2e] hover:from-[#ff9124] hover:to-[#ff5244] text-white shadow-glow-orange cursor-pointer active:scale-95'
                       : 'bg-white/5 text-white/40 cursor-not-allowed'
@@ -920,9 +920,9 @@ export default function MoviePlayer({
                   title={isHost ? (isPlaying ? 'Pause (Space / K)' : 'Play (Space / K)') : 'Playback controlled by Host'}
                 >
                   {isPlaying ? (
-                    <Pause className="w-4 h-4 fill-current" />
+                    <Pause className="w-3.5 h-3.5 fill-current" />
                   ) : (
-                    <Play className="w-4 h-4 fill-current ml-0.5" />
+                    <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
                   )}
                 </button>
 
