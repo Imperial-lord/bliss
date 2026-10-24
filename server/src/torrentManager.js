@@ -139,15 +139,19 @@ class TorrentManager {
               vttContent: null
             }));
 
-          // Select subtitle files with high priority so they download right away
+          // Mark subtitle pieces as CRITICAL so swarm peers download them immediately
           for (const sub of subs) {
-            sub.fileRef.select(1);
-            // Pre-read subtitle contents into cache
-            const stream = sub.fileRef.createReadStream();
-            let acc = '';
-            stream.on('data', chunk => { acc += chunk.toString('utf-8'); });
-            stream.on('end', () => {
-              sub.vttContent = sub.name.toLowerCase().endsWith('.srt') ? srtToVtt(acc) : acc;
+            const startP = sub.fileRef._startPiece || 0;
+            const endP = sub.fileRef._endPiece || startP;
+            torrent.critical(startP, endP);
+
+            // Fetch subtitle buffer asynchronously and pre-cache WebVTT
+            sub.fileRef.arrayBuffer().then((ab) => {
+              const text = Buffer.from(ab).toString('utf-8');
+              sub.vttContent = sub.name.toLowerCase().endsWith('.srt') ? srtToVtt(text) : text;
+              console.log(`[Torrent] Subtitle track ${sub.index} ("${sub.name}") pre-cached (${sub.vttContent.length} chars)`);
+            }).catch((err) => {
+              console.warn(`[Torrent] Warning pre-caching subtitle ${sub.name}:`, err.message);
             });
           }
 
@@ -310,7 +314,7 @@ class TorrentManager {
   /**
    * Streams subtitle track converted to WebVTT
    */
-  streamSubtitle(roomId, subIndex, req, res) {
+  async streamSubtitle(roomId, subIndex, req, res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Headers', 'Range, Content-Type, Accept');
     res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
@@ -336,25 +340,17 @@ class TorrentManager {
       return res.send(sub.vttContent);
     }
 
-    const file = sub.fileRef;
-    const ext = path.extname(file.name).toLowerCase();
-
-    const stream = file.createReadStream();
-    let dataBuffer = '';
-
-    stream.on('data', (chunk) => {
-      dataBuffer += chunk.toString('utf-8');
-    });
-
-    stream.on('end', () => {
-      const vtt = ext === '.srt' ? srtToVtt(dataBuffer) : dataBuffer;
+    try {
+      const ext = path.extname(sub.fileRef.name).toLowerCase();
+      const ab = await sub.fileRef.arrayBuffer();
+      const text = Buffer.from(ab).toString('utf-8');
+      const vtt = ext === '.srt' ? srtToVtt(text) : text;
       sub.vttContent = vtt;
       res.send(vtt);
-    });
-
-    stream.on('error', () => {
+    } catch (err) {
+      console.warn('[Torrent Subtitle Stream Error]:', err.message);
       res.status(500).send('Error reading subtitle stream');
-    });
+    }
   }
 
   getSession(roomId) {

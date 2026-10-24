@@ -5,6 +5,7 @@ import {
   Volume2,
   VolumeX,
   Maximize,
+  Minimize,
   Film,
   Radio,
   Sparkles,
@@ -18,6 +19,45 @@ import {
   Tv
 } from 'lucide-react';
 import { SERVER_URL } from '../config/webrtc';
+
+/**
+ * Robust WebVTT subtitle parser.
+ * Converts WebVTT cue blocks into structured { start, end, text } timestamps in seconds.
+ */
+function parseVttToCues(vttText) {
+  if (!vttText || typeof vttText !== 'string') return [];
+  const cues = [];
+  const timeRegex = /(?:(\d{2}):)?(\d{2}):(\d{2})[.,](\d{3})\s*-->\s*(?:(\d{2}):)?(\d{2}):(\d{2})[.,](\d{3})/;
+
+  const parseSeconds = (h, m, s, ms) => {
+    return (
+      parseInt(h || '0', 10) * 3600 +
+      parseInt(m, 10) * 60 +
+      parseInt(s, 10) +
+      parseInt(ms, 10) / 1000
+    );
+  };
+
+  const blocks = vttText.split(/\n\s*\n/);
+  for (const block of blocks) {
+    const lines = block.trim().split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      const match = lines[i].match(timeRegex);
+      if (match) {
+        const start = parseSeconds(match[1], match[2], match[3], match[4]);
+        const end = parseSeconds(match[5], match[6], match[7], match[8]);
+        const text = lines
+          .slice(i + 1)
+          .join('\n')
+          .replace(/<[^>]+>/g, '')
+          .trim();
+        if (text) cues.push({ start, end, text });
+        break;
+      }
+    }
+  }
+  return cues;
+}
 
 export default function MoviePlayer({
   roomId,
@@ -40,13 +80,132 @@ export default function MoviePlayer({
   const [duration, setDuration] = useState(0);
   const [selectedSubIndex, setSelectedSubIndex] = useState(0);
   const [showSubtitles, setShowSubtitles] = useState(true);
+  const [cues, setCues] = useState([]);
+  const [currentCue, setCurrentCue] = useState('');
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [hasStartedPlayback, setHasStartedPlayback] = useState(false);
+  const [controlsVisible, setControlsVisible] = useState(true);
   const [torrentInput, setTorrentInput] = useState('');
   const [isCueing, setIsCueing] = useState(false);
   const [showCueModal, setShowCueModal] = useState(false);
 
+  const containerRef = useRef(null);
   const videoRef = useRef(null);
   const playPromiseRef = useRef(null);
-  const lastSyncTimestamp = useRef(0);
+  const controlsTimeoutRef = useRef(null);
+
+  // Reset playback session state when a new movie is cued
+  useEffect(() => {
+    if (mediaStatus !== 'ready') {
+      setHasStartedPlayback(false);
+      setCues([]);
+      setCurrentCue('');
+    }
+  }, [mediaStatus]);
+
+  // Mark started playback once the movie has played for the first time
+  useEffect(() => {
+    if (isPlaying) {
+      setHasStartedPlayback(true);
+    }
+  }, [isPlaying]);
+
+  // Fetch and parse WebVTT subtitle track
+  useEffect(() => {
+    if (!subtitles || subtitles.length === 0 || mediaStatus !== 'ready') {
+      setCues([]);
+      setCurrentCue('');
+      return;
+    }
+
+    const subUrl = `/api/subtitles/${roomId}/${selectedSubIndex}.vtt`;
+    let isCancelled = false;
+
+    fetch(subUrl)
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.text();
+      })
+      .then((vttText) => {
+        if (isCancelled) return;
+        const parsed = parseVttToCues(vttText);
+        setCues(parsed);
+      })
+      .catch((err) => {
+        if (!isCancelled) {
+          console.warn('[Subtitles Load Warning]:', err.message);
+          setCues([]);
+        }
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [roomId, selectedSubIndex, subtitles, mediaStatus]);
+
+  // Compute active subtitle text from currentTime
+  useEffect(() => {
+    if (!showSubtitles || cues.length === 0) {
+      if (currentCue) setCurrentCue('');
+      return;
+    }
+
+    const active = cues.find(
+      (cue) => currentTime >= cue.start && currentTime <= cue.end
+    );
+    const newText = active ? active.text : '';
+    if (newText !== currentCue) {
+      setCurrentCue(newText);
+    }
+  }, [currentTime, cues, showSubtitles, currentCue]);
+
+  // Auto-hide control bar on idle during playback
+  const handleMouseMove = () => {
+    setControlsVisible(true);
+    if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+    if (isPlaying) {
+      controlsTimeoutRef.current = setTimeout(() => {
+        setControlsVisible(false);
+      }, 3500);
+    }
+  };
+
+  useEffect(() => {
+    if (!isPlaying) {
+      setControlsVisible(true);
+      if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+    }
+  }, [isPlaying]);
+
+  // Fullscreen container listener & handler
+  useEffect(() => {
+    const onFsChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', onFsChange);
+    document.addEventListener('webkitfullscreenchange', onFsChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', onFsChange);
+      document.removeEventListener('webkitfullscreenchange', onFsChange);
+    };
+  }, []);
+
+  const handleFullscreen = () => {
+    if (!containerRef.current) return;
+    if (!document.fullscreenElement) {
+      if (containerRef.current.requestFullscreen) {
+        containerRef.current.requestFullscreen().catch(console.warn);
+      } else if (containerRef.current.webkitRequestFullscreen) {
+        containerRef.current.webkitRequestFullscreen();
+      }
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen().catch(console.warn);
+      } else if (document.webkitExitFullscreen) {
+        document.webkitExitFullscreen();
+      }
+    }
+  };
 
   // Sync peer video with host authoritative remote playback
   useEffect(() => {
@@ -61,19 +220,31 @@ export default function MoviePlayer({
       if (Math.abs(videoRef.current.currentTime - expectedTime) > 0.8) {
         videoRef.current.currentTime = expectedTime;
       }
-      videoRef.current.play().then(() => setIsPlaying(true)).catch((err) => {
-        if (err.name === 'NotAllowedError') {
-          // Chrome autoplay policy blocked unmuted sound - mute and retry smoothly
-          if (videoRef.current) {
-            videoRef.current.muted = true;
-            setIsMuted(true);
-            setShowAutoplayMutedHint(true);
-            videoRef.current.play().then(() => setIsPlaying(true)).catch(console.warn);
+      videoRef.current
+        .play()
+        .then(() => {
+          setIsPlaying(true);
+          setHasStartedPlayback(true);
+        })
+        .catch((err) => {
+          if (err.name === 'NotAllowedError') {
+            // Autoplay blocked: mute and retry smoothly
+            if (videoRef.current) {
+              videoRef.current.muted = true;
+              setIsMuted(true);
+              setShowAutoplayMutedHint(true);
+              videoRef.current
+                .play()
+                .then(() => {
+                  setIsPlaying(true);
+                  setHasStartedPlayback(true);
+                })
+                .catch(console.warn);
+            }
+          } else if (err.name !== 'AbortError') {
+            console.warn('[Peer Playback Error]:', err);
           }
-        } else if (err.name !== 'AbortError') {
-          console.warn('[Peer Playback Error]:', err);
-        }
-      });
+        });
     } else if (action === 'pause') {
       videoRef.current.pause();
       setIsPlaying(false);
@@ -87,7 +258,7 @@ export default function MoviePlayer({
     }
   }, [remotePlayback, isHost]);
 
-  // Periodic drift check for non-host peers
+  // Periodic drift correction for non-host peers
   useEffect(() => {
     if (isHost || !videoRef.current || !remotePlayback || remotePlayback.action !== 'play') return;
 
@@ -98,7 +269,6 @@ export default function MoviePlayer({
       const expected = remotePlayback.currentTime + elapsed;
       const drift = Math.abs(videoRef.current.currentTime - expected);
 
-      // Smooth sync if drift exceeds 1.2 seconds
       if (drift > 1.2) {
         console.log(`[Cinema Sync] Correcting drift (${drift.toFixed(2)}s) to ${expected.toFixed(2)}s`);
         videoRef.current.currentTime = expected;
@@ -123,7 +293,7 @@ export default function MoviePlayer({
           onSyncPlayback('pause', videoRef.current.currentTime);
         }
       } catch (err) {
-        // Pause safely without abort error
+        // Paused safely
       }
     } else {
       try {
@@ -131,6 +301,7 @@ export default function MoviePlayer({
         playPromiseRef.current = promise;
         await promise;
         setIsPlaying(true);
+        setHasStartedPlayback(true);
         if (onSyncPlayback) {
           onSyncPlayback('play', videoRef.current.currentTime);
         }
@@ -179,13 +350,6 @@ export default function MoviePlayer({
     return `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
-  const handleFullscreen = () => {
-    if (!videoRef.current) return;
-    if (videoRef.current.requestFullscreen) {
-      videoRef.current.requestFullscreen();
-    }
-  };
-
   const handleCueSubmit = (e) => {
     if (e) e.preventDefault();
     if (!torrentInput.trim()) return;
@@ -198,12 +362,17 @@ export default function MoviePlayer({
     setTimeout(() => setIsCueing(false), 2000);
   };
 
-  // Prefer same-origin relative endpoint (Vite proxy in dev, direct in prod) to guarantee cross-origin subtitle support
+  // Stream source endpoint
   const streamSrc = `/api/stream/${roomId}`;
-  const subtitleSrc = subtitles.length > 0 ? `/api/subtitles/${roomId}/${selectedSubIndex}.vtt` : null;
 
   return (
-    <div className="relative w-full h-full bg-[#080d10] rounded-3xl overflow-hidden border border-white/10 shadow-2xl flex flex-col justify-center items-center group font-sans select-none">
+    <div
+      ref={containerRef}
+      onMouseMove={handleMouseMove}
+      className={`relative w-full h-full bg-[#080d10] ${
+        isFullscreen ? 'rounded-0' : 'rounded-3xl'
+      } overflow-hidden border border-white/10 shadow-2xl flex flex-col justify-center items-center group font-sans select-none`}
+    >
       {/* ========================================================================= */}
       {/* 1. IDLE STATE: WAITING FOR HOST / CUE MOVIE STAGE */}
       {/* ========================================================================= */}
@@ -352,33 +521,25 @@ export default function MoviePlayer({
           <video
             ref={videoRef}
             src={streamSrc}
-            className="w-full h-full object-contain"
+            className="w-full h-full object-contain cursor-pointer"
             playsInline
             crossOrigin="anonymous"
             preload="auto"
             muted={isMuted}
+            onClick={isHost ? togglePlay : undefined}
             onTimeUpdate={handleTimeUpdate}
             onLoadedMetadata={handleTimeUpdate}
             onPlay={() => {
               setIsPlaying(true);
               setIsBuffering(false);
+              setHasStartedPlayback(true);
             }}
             onPause={() => setIsPlaying(false)}
             onWaiting={() => setIsBuffering(true)}
             onPlaying={() => setIsBuffering(false)}
             onCanPlay={() => setIsBuffering(false)}
             onError={(e) => console.warn('[Video Media Error]:', e)}
-          >
-            {subtitleSrc && showSubtitles && (
-              <track
-                kind="subtitles"
-                src={subtitleSrc}
-                srcLang="en"
-                label={subtitles[selectedSubIndex]?.name || 'English'}
-                default
-              />
-            )}
-          </video>
+          />
 
           {/* Buffering Spinner Overlay while playing */}
           {isBuffering && isPlaying && (
@@ -408,9 +569,27 @@ export default function MoviePlayer({
             </div>
           )}
 
-          {/* Center Play Button Overlay for Host when Paused */}
-          {!isPlaying && isHost && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-[3px] z-10 p-6 text-center">
+          {/* CUSTOM CINEMATIC SUBTITLE OVERLAY */}
+          {showSubtitles && currentCue && (
+            <div className="absolute bottom-24 left-1/2 -translate-x-1/2 max-w-[85%] z-25 pointer-events-none text-center animate-fade-in">
+              <span className="inline-block bg-black/85 backdrop-blur-md text-white text-sm sm:text-base md:text-xl font-medium px-4 py-2 rounded-xl border border-white/10 shadow-2xl tracking-wide leading-relaxed drop-shadow-md">
+                {currentCue.split('\n').map((line, idx) => (
+                  <React.Fragment key={idx}>
+                    {idx > 0 && <br />}
+                    {line}
+                  </React.Fragment>
+                ))}
+              </span>
+            </div>
+          )}
+
+          {/* ========================================================================= */}
+          {/* PLAY / PAUSE OVERLAYS */}
+          {/* ========================================================================= */}
+
+          {/* INITIAL STAGING: Host sees "Start Cinema Playback" ONLY BEFORE first play */}
+          {!hasStartedPlayback && !isPlaying && isHost && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-[3px] z-15 p-6 text-center">
               <div className="max-w-md w-full bg-[#12171c]/95 border border-[#ff7a00]/30 rounded-3xl p-6 shadow-2xl flex flex-col items-center animate-fade-in">
                 <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#ff7a00]/15 text-[#ff7a00] text-[10px] font-bold uppercase tracking-widest mb-3 border border-[#ff7a00]/30">
                   <Sparkles className="w-3 h-3" />
@@ -435,9 +614,9 @@ export default function MoviePlayer({
             </div>
           )}
 
-          {/* Peer Standby Card when stream is ready but Host has not started yet */}
-          {!isPlaying && !isHost && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 backdrop-blur-[2px] z-10 p-6 text-center pointer-events-none">
+          {/* INITIAL STAGING: Peer standby card ONLY BEFORE first play */}
+          {!hasStartedPlayback && !isPlaying && !isHost && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 backdrop-blur-[2px] z-15 p-6 text-center pointer-events-none">
               <div className="max-w-sm w-full bg-[#12171c]/90 border border-white/10 rounded-3xl p-6 shadow-2xl flex flex-col items-center">
                 <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 mb-3">
                   <Film className="w-6 h-6 animate-pulse" />
@@ -452,9 +631,34 @@ export default function MoviePlayer({
             </div>
           )}
 
-          {/* Top Header Badge Overlay */}
-          <div className="absolute top-4 left-4 right-4 flex items-center justify-between z-20 pointer-events-none">
-            <div className="flex items-center gap-2 bg-[#080d10]/90 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-white/10 text-xs font-bold text-white shadow max-w-[65%] truncate">
+          {/* NORMAL PAUSE (AFTER FIRST PLAY): Host sees clean centered play circle (NO INTRUSIVE MODAL) */}
+          {hasStartedPlayback && !isPlaying && isHost && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/35 backdrop-blur-[1px] z-15 pointer-events-auto">
+              <button
+                onClick={togglePlay}
+                className="w-20 h-20 rounded-full bg-[#ff7a00]/90 hover:bg-[#ff7a00] text-white flex items-center justify-center shadow-glow-orange transition-all hover:scale-110 active:scale-95 cursor-pointer backdrop-blur-md border border-white/20"
+                title="Resume Playback"
+              >
+                <Play className="w-9 h-9 fill-current ml-1" />
+              </button>
+            </div>
+          )}
+
+          {/* NORMAL PAUSE (AFTER FIRST PLAY): Peer sees subtle top notification pill */}
+          {hasStartedPlayback && !isPlaying && !isHost && (
+            <div className="absolute top-16 left-1/2 -translate-x-1/2 bg-black/75 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-white/10 text-xs font-mono text-[#9aa6af] flex items-center gap-2 pointer-events-none z-20 shadow-lg animate-fade-in">
+              <Pause className="w-3.5 h-3.5 text-[#ff7a00]" />
+              <span>Paused by Room Host</span>
+            </div>
+          )}
+
+          {/* Top Header Badge Overlay (Auto-hides on idle) */}
+          <div
+            className={`absolute top-4 left-4 right-4 flex items-center justify-between z-20 pointer-events-none transition-opacity duration-300 ${
+              controlsVisible ? 'opacity-100' : 'opacity-0'
+            }`}
+          >
+            <div className="flex items-center gap-2 bg-[#080d10]/90 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-white/10 text-xs font-bold text-white shadow max-w-[65%] truncate pointer-events-auto">
               <Film className="w-3.5 h-3.5 text-[#ff7a00] shrink-0" />
               <span className="truncate">{mediaTitle || 'Synchronized Cinema'}</span>
             </div>
@@ -464,7 +668,7 @@ export default function MoviePlayer({
               {isHost && (
                 <button
                   onClick={() => setShowCueModal(true)}
-                  className="bg-[#12171c]/90 hover:bg-[#1b2229] border border-white/15 text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-full backdrop-blur-md transition-all shadow hover:border-[#ff7a00]"
+                  className="bg-[#12171c]/90 hover:bg-[#1b2229] border border-white/15 text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-full backdrop-blur-md transition-all shadow hover:border-[#ff7a00] cursor-pointer"
                 >
                   Change Movie
                 </button>
@@ -477,8 +681,12 @@ export default function MoviePlayer({
             </div>
           </div>
 
-          {/* Cinema Playback Control Bar */}
-          <div className="absolute bottom-4 left-4 right-4 bg-[#12171c]/95 backdrop-blur-xl border border-white/10 px-5 py-3 rounded-2xl flex flex-col gap-2 opacity-95 group-hover:opacity-100 transition-opacity duration-200 z-20">
+          {/* Cinema Custom Playback Control Bar (Auto-hides on idle) */}
+          <div
+            className={`absolute bottom-4 left-4 right-4 bg-[#12171c]/95 backdrop-blur-xl border border-white/10 px-5 py-3 rounded-2xl flex flex-col gap-2 transition-opacity duration-300 z-20 ${
+              controlsVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+            }`}
+          >
             {/* Scrubber Timeline */}
             <div className="w-full flex items-center gap-3">
               <span className="text-[10px] font-mono font-medium text-[#9aa6af] w-12">
@@ -548,7 +756,7 @@ export default function MoviePlayer({
                       <select
                         value={selectedSubIndex}
                         onChange={(e) => setSelectedSubIndex(parseInt(e.target.value, 10))}
-                        className="bg-[#080d10] text-[#9aa6af] hover:text-white border border-white/10 rounded-lg text-[10px] font-mono px-2 py-1 outline-none focus:border-[#ff7a00]"
+                        className="bg-[#080d10] text-[#9aa6af] hover:text-white border border-white/10 rounded-lg text-[10px] font-mono px-2 py-1 outline-none focus:border-[#ff7a00] cursor-pointer"
                       >
                         {subtitles.map((s) => (
                           <option key={s.index} value={s.index}>
@@ -561,7 +769,7 @@ export default function MoviePlayer({
                 )}
               </div>
 
-              {/* Status & Fullscreen */}
+              {/* Status & Custom Fullscreen Toggle */}
               <div className="flex items-center gap-2.5">
                 <span
                   className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border ${
@@ -576,9 +784,13 @@ export default function MoviePlayer({
                 <button
                   onClick={handleFullscreen}
                   className="p-1.5 hover:text-[#ff7a00] text-white transition-colors cursor-pointer"
-                  title="Fullscreen"
+                  title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
                 >
-                  <Maximize className="w-5 h-5" />
+                  {isFullscreen ? (
+                    <Minimize className="w-5 h-5" />
+                  ) : (
+                    <Maximize className="w-5 h-5" />
+                  )}
                 </button>
               </div>
             </div>
@@ -631,13 +843,13 @@ export default function MoviePlayer({
                 <button
                   type="button"
                   onClick={() => setShowCueModal(false)}
-                  className="flex-1 py-2.5 px-3 rounded-xl bg-white/5 hover:bg-white/10 text-[#9aa6af] hover:text-white border border-white/10 text-xs font-bold uppercase tracking-wider"
+                  className="flex-1 py-2.5 px-3 rounded-xl bg-white/5 hover:bg-white/10 text-[#9aa6af] hover:text-white border border-white/10 text-xs font-bold uppercase tracking-wider cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2.5 px-3 rounded-xl bg-gradient-to-r from-[#ff7a00] to-[#ff3d2e] text-white text-xs font-bold uppercase tracking-wider shadow-glow-orange"
+                  className="flex-1 py-2.5 px-3 rounded-xl bg-gradient-to-r from-[#ff7a00] to-[#ff3d2e] text-white text-xs font-bold uppercase tracking-wider shadow-glow-orange cursor-pointer"
                 >
                   Stream New Movie
                 </button>
