@@ -48,42 +48,60 @@ export default function LandingHero({ onStartParty, onJoinWithCode, currentUser 
       <div className="absolute top-1/2 right-4 w-[300px] h-[300px] bg-[#ff7a00]/10 blur-[130px] pointer-events-none rounded-full" />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-        {/* Eyebrow Pill */}
-        <div className="flex justify-center mb-5">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#12171c] border border-[#ff7a00]/30 shadow-glow-orange animate-gentle-float">
-            <span className="w-2 h-2 rounded-full bg-[#ff7a00] animate-ping" />
-            <span className="text-[11px] font-bold uppercase tracking-widest text-[#ff7a00]">
-              Direct P2P Cinema Streaming & Video Calls
-            </span>
+        {/* ========================================================================= */}
+        {/* SIDE-BY-SIDE HERO (LHS HEADLINE, RHS ACTION HUB) */}
+        {/* ========================================================================= */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center pt-2 pb-6">
+          {/* LHS: Eyebrow + Main Hero Title + Description (7 cols) */}
+          <div className="lg:col-span-7 flex flex-col items-center lg:items-start text-center lg:text-left">
+            {/* Eyebrow Pill */}
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#12171c] border border-[#ff7a00]/30 shadow-glow-orange animate-gentle-float mb-5">
+              <span className="w-2 h-2 rounded-full bg-[#ff7a00] animate-ping" />
+              <span className="text-[11px] font-bold uppercase tracking-widest text-[#ff7a00]">
+                Direct P2P Cinema Streaming & Video Calls
+              </span>
+            </div>
+
+            {/* Clean, Impactful Hero Title */}
+            <h1 className="font-display text-4xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight text-white leading-[1.05]">
+              Stream movies together. <br />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#ff7a00] via-[#ff9433] to-[#ff3d2e]">
+                Live and in sync.
+              </span>
+            </h1>
+
+            <p className="mt-5 text-base sm:text-lg text-[#9aa6af] max-w-xl font-sans leading-relaxed">
+              Movie playback on the left. Zoom-like peer video calling on the right. Crystal-clear WebRTC audio, sub-second sync, and animated party reactions.
+            </p>
+
+            {/* Feature Badges */}
+            <div className="mt-6 flex flex-wrap items-center justify-center lg:justify-start gap-4 text-xs font-mono text-[#9aa6af]">
+              <div className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                <span>Sub-second Sync</span>
+              </div>
+              <span>•</span>
+              <div className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#ff7a00]" />
+                <span>Zero Cloud Storage</span>
+              </div>
+              <span>•</span>
+              <div className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
+                <span>100% Ephemeral</span>
+              </div>
+            </div>
           </div>
-        </div>
 
-        {/* Clean, Impactful Hero Title */}
-        <div className="text-center max-w-4xl mx-auto">
-          <h1 className="font-display text-5xl sm:text-7xl lg:text-8xl font-extrabold tracking-tight text-white leading-[1.05]">
-            Stream movies together. <br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#ff7a00] via-[#ff9433] to-[#ff3d2e]">
-              Live and in sync.
-            </span>
-          </h1>
-
-          <p className="mt-5 text-base sm:text-lg text-[#9aa6af] max-w-2xl mx-auto font-sans leading-relaxed">
-            Movie playback on the left. Zoom-like peer video calling on the right. Crystal-clear WebRTC audio, sub-second sync, and animated party reactions.
-          </p>
-        </div>
-
-        {/* ========================================================================= */}
-        {/* UNCLUTTERED, UNMISSABLE MAIN ACTION HUB (HOST & JOIN) */}
-        {/* ========================================================================= */}
-        <div className="mt-10 max-w-3xl mx-auto">
-          <div className="bg-[#12171c]/90 backdrop-blur-2xl border-2 border-white/10 hover:border-[#ff7a00]/40 rounded-3xl p-6 sm:p-8 shadow-2xl transition-all duration-300">
-            <div className="grid grid-cols-1 md:grid-cols-11 gap-6 items-center">
+          {/* RHS: Action Hub Card (Host New Room & Join With Code) (5 cols) */}
+          <div className="lg:col-span-5 w-full">
+            <div className="bg-[#12171c]/90 backdrop-blur-2xl border-2 border-white/10 hover:border-[#ff7a00]/40 rounded-3xl p-6 sm:p-7 shadow-2xl transition-all duration-300 flex flex-col justify-between space-y-6">
               {/* PRIMARY ACTION 1: Host a Watch Party */}
-              <div className="md:col-span-5 flex flex-col justify-center text-center sm:text-left">
+              <div className="flex flex-col text-left">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-[#ff7a00] mb-1">
                   Start From Scratch
                 </span>
-                <h3 className="font-display text-xl sm:text-2xl font-bold text-white mb-2">
+                <h3 className="font-display text-xl sm:text-2xl font-bold text-white mb-1.5">
                   Host New Room
                 </h3>
                 <p className="text-xs text-[#9aa6af] mb-4">
@@ -100,24 +118,24 @@ export default function LandingHero({ onStartParty, onJoinWithCode, currentUser 
                 </button>
               </div>
 
-              {/* STYLISH DIVIDER */}
-              <div className="md:col-span-1 flex md:flex-col items-center justify-center gap-2">
-                <div className="flex-1 h-[1px] md:h-12 w-full md:w-[1px] bg-white/10" />
-                <span className="text-[10px] font-bold uppercase text-[#9aa6af] px-2 py-1 bg-[#080d10] rounded-full border border-white/5">
+              {/* DIVIDER */}
+              <div className="flex items-center gap-3">
+                <div className="flex-1 h-[1px] bg-white/10" />
+                <span className="text-[10px] font-bold uppercase text-[#9aa6af] px-2.5 py-0.5 bg-[#080d10] rounded-full border border-white/5">
                   OR
                 </span>
-                <div className="flex-1 h-[1px] md:h-12 w-full md:w-[1px] bg-white/10" />
+                <div className="flex-1 h-[1px] bg-white/10" />
               </div>
 
               {/* PRIMARY ACTION 2: Join with Code */}
-              <div className="md:col-span-5 flex flex-col justify-center text-center sm:text-left">
+              <div className="flex flex-col text-left">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400 mb-1">
                   Got an Invite?
                 </span>
-                <h3 className="font-display text-xl sm:text-2xl font-bold text-white mb-2">
+                <h3 className="font-display text-xl sm:text-2xl font-bold text-white mb-1.5">
                   Join With Code
                 </h3>
-                <p className="text-xs text-[#9aa6af] mb-4">
+                <p className="text-xs text-[#9aa6af] mb-3.5">
                   Enter the 6-character room code shared by your host.
                 </p>
 
@@ -170,7 +188,7 @@ export default function LandingHero({ onStartParty, onJoinWithCode, currentUser 
         {/* ========================================================================= */}
         {/* INTERACTIVE THEATER STAGE (LHS MOVIE + RHS ZOOM CALL - TELEPORT DESIGN) */}
         {/* ========================================================================= */}
-        <div className="mt-14 max-w-6xl mx-auto">
+        <div className="mt-8 max-w-6xl mx-auto">
           {/* Header pill above the preview */}
           <div className="flex items-center justify-between mb-3 px-2">
             <div className="flex items-center gap-2">
