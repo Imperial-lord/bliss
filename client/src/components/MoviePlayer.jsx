@@ -42,6 +42,7 @@ export default function MoviePlayer({
   const [showCueModal, setShowCueModal] = useState(false);
 
   const videoRef = useRef(null);
+  const playPromiseRef = useRef(null);
   const lastSyncTimestamp = useRef(0);
 
   // Sync peer video with host authoritative remote playback
@@ -57,7 +58,9 @@ export default function MoviePlayer({
       if (Math.abs(videoRef.current.currentTime - expectedTime) > 0.8) {
         videoRef.current.currentTime = expectedTime;
       }
-      videoRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
+      videoRef.current.play().then(() => setIsPlaying(true)).catch((err) => {
+        if (err.name !== 'AbortError') console.warn(err);
+      });
     } else if (action === 'pause') {
       videoRef.current.pause();
       setIsPlaying(false);
@@ -92,31 +95,39 @@ export default function MoviePlayer({
     return () => clearInterval(interval);
   }, [remotePlayback, isHost]);
 
-  // Host: Toggle Play/Pause
-  const togglePlay = () => {
-    if (!videoRef.current) return;
-
-    if (!isHost) {
-      // Peer feedback: Host is in control
-      return;
-    }
+  // Host: Toggle Play/Pause with async race protection
+  const togglePlay = async () => {
+    if (!videoRef.current || !isHost) return;
 
     if (isPlaying) {
-      videoRef.current.pause();
-      setIsPlaying(false);
-      if (onSyncPlayback) {
-        onSyncPlayback('pause', videoRef.current.currentTime);
+      try {
+        if (playPromiseRef.current) {
+          await playPromiseRef.current;
+        }
+        videoRef.current.pause();
+        setIsPlaying(false);
+        if (onSyncPlayback) {
+          onSyncPlayback('pause', videoRef.current.currentTime);
+        }
+      } catch (err) {
+        // Pause safely without abort error
       }
     } else {
-      videoRef.current
-        .play()
-        .then(() => {
-          setIsPlaying(true);
-          if (onSyncPlayback) {
-            onSyncPlayback('play', videoRef.current.currentTime);
-          }
-        })
-        .catch(console.warn);
+      try {
+        const promise = videoRef.current.play();
+        playPromiseRef.current = promise;
+        await promise;
+        setIsPlaying(true);
+        if (onSyncPlayback) {
+          onSyncPlayback('play', videoRef.current.currentTime);
+        }
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          console.warn('[Video Playback Warning]:', err);
+        }
+      } finally {
+        playPromiseRef.current = null;
+      }
     }
   };
 
@@ -174,8 +185,9 @@ export default function MoviePlayer({
     setTimeout(() => setIsCueing(false), 2000);
   };
 
-  const streamSrc = `${SERVER_URL}/api/stream/${roomId}`;
-  const subtitleSrc = subtitles.length > 0 ? `${SERVER_URL}/api/subtitles/${roomId}/${selectedSubIndex}.vtt` : null;
+  // Prefer same-origin relative endpoint (Vite proxy in dev, direct in prod) to guarantee cross-origin subtitle support
+  const streamSrc = `/api/stream/${roomId}`;
+  const subtitleSrc = subtitles.length > 0 ? `/api/subtitles/${roomId}/${selectedSubIndex}.vtt` : null;
 
   return (
     <div className="relative w-full h-full bg-[#080d10] rounded-3xl overflow-hidden border border-white/10 shadow-2xl flex flex-col justify-center items-center group font-sans select-none">
@@ -329,10 +341,13 @@ export default function MoviePlayer({
             src={streamSrc}
             className="w-full h-full object-contain"
             playsInline
+            crossOrigin="anonymous"
+            preload="auto"
             onTimeUpdate={handleTimeUpdate}
             onLoadedMetadata={handleTimeUpdate}
             onPlay={() => setIsPlaying(true)}
             onPause={() => setIsPlaying(false)}
+            onError={(e) => console.warn('[Video Media Error]:', e)}
           >
             {subtitleSrc && showSubtitles && (
               <track

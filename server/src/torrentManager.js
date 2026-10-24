@@ -83,6 +83,9 @@ class TorrentManager {
 
           console.log(`[Torrent] Added: "${torrent.name}" for room: ${roomId} (InfoHash: ${torrent.infoHash})`);
 
+          // Deselect whole torrent first to prevent downloading unrelated files or random pieces
+          torrent.deselect(0, torrent.pieces.length - 1, false);
+
           // Identify candidate video files (.mp4, .mkv, .webm, .avi)
           const videoExtensions = ['.mp4', '.mkv', '.webm', '.avi', '.mov', '.m4v'];
           const videoFiles = torrent.files.filter((file) => {
@@ -104,6 +107,12 @@ class TorrentManager {
 
           // Set sequential priority for streaming
           primaryVideo.select();
+
+          // Prioritize start pieces and end pieces where MP4 moov metadata atom resides
+          const startPiece = primaryVideo._startPiece || 0;
+          const endPiece = primaryVideo._endPiece || (torrent.pieces.length - 1);
+          torrent.select(startPiece, Math.min(startPiece + 8, endPiece), 1);
+          torrent.select(Math.max(startPiece, endPiece - 8), endPiece, 1);
 
           session.videoFile = primaryVideo;
           session.fileSize = primaryVideo.length;
@@ -131,15 +140,6 @@ class TorrentManager {
 
           console.log(`[Torrent] Cinema Stream Ready: "${session.title}" (${(session.fileSize / (1024 * 1024)).toFixed(1)} MB, ${subs.length} subtitle tracks)`);
 
-          if (onProgress) {
-            onProgress({
-              status: 'ready',
-              title: session.title,
-              fileSize: session.fileSize,
-              subtitles: subs.map(s => ({ index: s.index, name: s.name }))
-            });
-          }
-
           resolve({
             title: session.title,
             fileSize: session.fileSize,
@@ -160,6 +160,15 @@ class TorrentManager {
    * HTTP 206 Range Streamer for HTML5 <video>
    */
   streamVideo(roomId, req, res) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Headers', 'Range, Content-Type, Accept');
+    res.setHeader('Access-Control-Expose-Headers', 'Content-Range, Accept-Ranges, Content-Length');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+
+    if (req.method === 'OPTIONS') {
+      return res.sendStatus(204);
+    }
+
     const session = this.roomSessions.get(roomId);
     if (!session || !session.videoFile || session.status !== 'ready') {
       return res.status(404).json({ error: 'No active video stream ready for this room' });
@@ -186,7 +195,8 @@ class TorrentManager {
         'Content-Range': `bytes ${start}-${end}/${fileSize}`,
         'Accept-Ranges': 'bytes',
         'Content-Length': chunksize,
-        'Content-Type': session.mimeType
+        'Content-Type': session.mimeType,
+        'Access-Control-Allow-Origin': '*'
       });
 
       stream.pipe(res);
@@ -198,7 +208,8 @@ class TorrentManager {
       res.writeHead(200, {
         'Content-Length': fileSize,
         'Content-Type': session.mimeType,
-        'Accept-Ranges': 'bytes'
+        'Accept-Ranges': 'bytes',
+        'Access-Control-Allow-Origin': '*'
       });
 
       const stream = file.createReadStream();
@@ -214,6 +225,14 @@ class TorrentManager {
    * Streams subtitle track converted to WebVTT
    */
   streamSubtitle(roomId, subIndex, req, res) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Headers', 'Range, Content-Type, Accept');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+
+    if (req.method === 'OPTIONS') {
+      return res.sendStatus(204);
+    }
+
     const session = this.roomSessions.get(roomId);
     if (!session || !session.subtitleFiles) {
       return res.status(404).send('Subtitles not found');
