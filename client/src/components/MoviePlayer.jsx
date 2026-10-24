@@ -15,6 +15,8 @@ import {
   Loader2,
   Check,
   RotateCcw,
+  RotateCw,
+  Lock,
   Clock,
   Tv
 } from 'lucide-react';
@@ -75,6 +77,7 @@ export default function MoviePlayer({
   const [isPlaying, setIsPlaying] = useState(false);
   const [isBuffering, setIsBuffering] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
+  const [volume, setVolume] = useState(1);
   const [showAutoplayMutedHint, setShowAutoplayMutedHint] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -85,6 +88,7 @@ export default function MoviePlayer({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [hasStartedPlayback, setHasStartedPlayback] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
+  const [feedbackToast, setFeedbackToast] = useState(null);
   const [torrentInput, setTorrentInput] = useState('');
   const [isCueing, setIsCueing] = useState(false);
   const [showCueModal, setShowCueModal] = useState(false);
@@ -93,6 +97,16 @@ export default function MoviePlayer({
   const videoRef = useRef(null);
   const playPromiseRef = useRef(null);
   const controlsTimeoutRef = useRef(null);
+  const feedbackTimeoutRef = useRef(null);
+
+  // Trigger brief visual feedback overlay (play, pause, +/-10s, volume)
+  const triggerToast = useCallback((toast) => {
+    setFeedbackToast(toast);
+    if (feedbackTimeoutRef.current) clearTimeout(feedbackTimeoutRef.current);
+    feedbackTimeoutRef.current = setTimeout(() => {
+      setFeedbackToast(null);
+    }, 1000);
+  }, []);
 
   // Reset playback session state when a new movie is cued
   useEffect(() => {
@@ -190,7 +204,7 @@ export default function MoviePlayer({
     };
   }, []);
 
-  const handleFullscreen = () => {
+  const handleFullscreen = useCallback(() => {
     if (!containerRef.current) return;
     if (!document.fullscreenElement) {
       if (containerRef.current.requestFullscreen) {
@@ -205,7 +219,7 @@ export default function MoviePlayer({
         document.webkitExitFullscreen();
       }
     }
-  };
+  }, []);
 
   // Sync peer video with host authoritative remote playback
   useEffect(() => {
@@ -279,7 +293,7 @@ export default function MoviePlayer({
   }, [remotePlayback, isHost]);
 
   // Host: Toggle Play/Pause with async race protection
-  const togglePlay = async () => {
+  const togglePlay = useCallback(async () => {
     if (!videoRef.current || !isHost) return;
 
     if (isPlaying) {
@@ -289,6 +303,7 @@ export default function MoviePlayer({
         }
         videoRef.current.pause();
         setIsPlaying(false);
+        triggerToast({ type: 'pause', text: 'Paused' });
         if (onSyncPlayback) {
           onSyncPlayback('pause', videoRef.current.currentTime);
         }
@@ -302,6 +317,7 @@ export default function MoviePlayer({
         await promise;
         setIsPlaying(true);
         setHasStartedPlayback(true);
+        triggerToast({ type: 'play', text: 'Playing' });
         if (onSyncPlayback) {
           onSyncPlayback('play', videoRef.current.currentTime);
         }
@@ -313,7 +329,7 @@ export default function MoviePlayer({
         playPromiseRef.current = null;
       }
     }
-  };
+  }, [isHost, isPlaying, onSyncPlayback, triggerToast]);
 
   // Host: Seek scrubber timeline
   const handleSeek = (e) => {
@@ -326,11 +342,160 @@ export default function MoviePlayer({
     }
   };
 
-  const toggleMute = () => {
+  // Host: Skip forward / backward relative offset (+10s / -10s)
+  const seekByOffset = useCallback(
+    (offsetSeconds) => {
+      if (!videoRef.current || !isHost) return;
+      const videoDuration = videoRef.current.duration || duration || 100;
+      const targetTime = Math.max(0, Math.min(videoDuration, videoRef.current.currentTime + offsetSeconds));
+      videoRef.current.currentTime = targetTime;
+      setCurrentTime(targetTime);
+      if (onSyncPlayback) {
+        onSyncPlayback('seek', targetTime);
+      }
+      triggerToast({
+        type: offsetSeconds > 0 ? 'forward' : 'backward',
+        text: `${offsetSeconds > 0 ? '+' : ''}${offsetSeconds}s`
+      });
+    },
+    [isHost, duration, onSyncPlayback, triggerToast]
+  );
+
+  // Volume & Audio control
+  const toggleMute = useCallback(() => {
     if (!videoRef.current) return;
     videoRef.current.muted = !videoRef.current.muted;
     setIsMuted(videoRef.current.muted);
-  };
+    triggerToast({
+      type: videoRef.current.muted ? 'volume' : 'volume',
+      text: videoRef.current.muted ? 'Muted' : `${Math.round(videoRef.current.volume * 100)}%`
+    });
+  }, [triggerToast]);
+
+  const adjustVolume = useCallback(
+    (delta) => {
+      if (!videoRef.current) return;
+      const newVol = Math.max(0, Math.min(1, Math.round((videoRef.current.volume + delta) * 100) / 100));
+      videoRef.current.volume = newVol;
+      setVolume(newVol);
+      if (newVol === 0) {
+        videoRef.current.muted = true;
+        setIsMuted(true);
+      } else {
+        videoRef.current.muted = false;
+        setIsMuted(false);
+      }
+      triggerToast({
+        type: 'volume',
+        text: `${Math.round(newVol * 100)}%`
+      });
+    },
+    [triggerToast]
+  );
+
+  // KEYBOARD SHORTCUTS CONTROLLER
+  useEffect(() => {
+    if (mediaStatus !== 'ready') return;
+
+    const handleKeyDown = (e) => {
+      // Do not capture keyboard shortcuts if user is actively typing in an input field or textarea
+      const target = e.target;
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable ||
+          target.getAttribute('role') === 'textbox')
+      ) {
+        return;
+      }
+
+      // Spacebar or 'k': Toggle Play / Pause
+      if (e.code === 'Space' || e.key === ' ' || e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        if (isHost) {
+          togglePlay();
+        } else {
+          triggerToast({ type: 'locked', text: 'Host controls playback' });
+        }
+        return;
+      }
+
+      // Left Arrow or 'j': Seek -10s
+      if (e.code === 'ArrowLeft' || e.key.toLowerCase() === 'j') {
+        e.preventDefault();
+        if (isHost) {
+          seekByOffset(-10);
+        } else {
+          triggerToast({ type: 'locked', text: 'Host controls playback' });
+        }
+        return;
+      }
+
+      // Right Arrow or 'l': Seek +10s
+      if (e.code === 'ArrowRight' || e.key.toLowerCase() === 'l') {
+        e.preventDefault();
+        if (isHost) {
+          seekByOffset(10);
+        } else {
+          triggerToast({ type: 'locked', text: 'Host controls playback' });
+        }
+        return;
+      }
+
+      // Up Arrow: Volume Up (+10%)
+      if (e.code === 'ArrowUp') {
+        e.preventDefault();
+        adjustVolume(0.1);
+        return;
+      }
+
+      // Down Arrow: Volume Down (-10%)
+      if (e.code === 'ArrowDown') {
+        e.preventDefault();
+        adjustVolume(-0.1);
+        return;
+      }
+
+      // 'm': Toggle Mute
+      if (e.key.toLowerCase() === 'm') {
+        e.preventDefault();
+        toggleMute();
+        return;
+      }
+
+      // 'f': Toggle Fullscreen
+      if (e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        handleFullscreen();
+        return;
+      }
+
+      // 'c': Toggle Captions / Subtitles
+      if (e.key.toLowerCase() === 'c') {
+        e.preventDefault();
+        setShowSubtitles((prev) => !prev);
+        triggerToast({
+          type: 'volume',
+          text: !showSubtitles ? 'Subtitles On' : 'Subtitles Off'
+        });
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    mediaStatus,
+    isHost,
+    showSubtitles,
+    togglePlay,
+    seekByOffset,
+    adjustVolume,
+    toggleMute,
+    handleFullscreen,
+    triggerToast
+  ]);
 
   const handleTimeUpdate = () => {
     if (videoRef.current) {
@@ -527,6 +692,7 @@ export default function MoviePlayer({
             preload="auto"
             muted={isMuted}
             onClick={isHost ? togglePlay : undefined}
+            onDoubleClick={handleFullscreen}
             onTimeUpdate={handleTimeUpdate}
             onLoadedMetadata={handleTimeUpdate}
             onPlay={() => {
@@ -546,6 +712,21 @@ export default function MoviePlayer({
             <div className="absolute inset-0 flex items-center justify-center bg-black/30 backdrop-blur-[1px] pointer-events-none z-10">
               <div className="w-14 h-14 rounded-2xl bg-[#12171c]/90 border border-[#ff7a00]/30 flex items-center justify-center text-[#ff7a00] shadow-glow-orange">
                 <Loader2 className="w-7 h-7 animate-spin" />
+              </div>
+            </div>
+          )}
+
+          {/* Center Feedback Toast for Keyboard & Click Actions */}
+          {feedbackToast && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-30 animate-fade-in">
+              <div className="flex flex-col items-center gap-1.5 bg-black/85 backdrop-blur-md px-5 py-3.5 rounded-2xl border border-white/15 text-white shadow-2xl scale-110">
+                {feedbackToast.type === 'forward' && <RotateCw className="w-8 h-8 text-[#ff7a00] animate-spin-once" />}
+                {feedbackToast.type === 'backward' && <RotateCcw className="w-8 h-8 text-[#ff7a00] animate-spin-once" />}
+                {feedbackToast.type === 'volume' && <Volume2 className="w-8 h-8 text-[#ff7a00]" />}
+                {feedbackToast.type === 'play' && <Play className="w-8 h-8 text-[#ff7a00] fill-current" />}
+                {feedbackToast.type === 'pause' && <Pause className="w-8 h-8 text-[#ff7a00] fill-current" />}
+                {feedbackToast.type === 'locked' && <Lock className="w-8 h-8 text-amber-400" />}
+                <span className="text-xs font-mono font-bold tracking-wider">{feedbackToast.text}</span>
               </div>
             </div>
           )}
@@ -600,7 +781,7 @@ export default function MoviePlayer({
                   {mediaTitle || 'Cinema Stream Ready'}
                 </h4>
                 <p className="text-xs text-[#9aa6af] mb-5">
-                  The movie stream is buffered and ready. Press play below to start synchronized playback for all peers.
+                  The movie stream is buffered and ready. Press play below or press Spacebar to start synchronized playback for all peers.
                 </p>
 
                 <button
@@ -637,7 +818,7 @@ export default function MoviePlayer({
               <button
                 onClick={togglePlay}
                 className="w-20 h-20 rounded-full bg-[#ff7a00]/90 hover:bg-[#ff7a00] text-white flex items-center justify-center shadow-glow-orange transition-all hover:scale-110 active:scale-95 cursor-pointer backdrop-blur-md border border-white/20"
-                title="Resume Playback"
+                title="Resume Playback (Space)"
               >
                 <Play className="w-9 h-9 fill-current ml-1" />
               </button>
@@ -711,17 +892,32 @@ export default function MoviePlayer({
 
             {/* Lower Controls */}
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2.5 sm:gap-3">
+                {/* Host -10s Rewind Button */}
+                <button
+                  onClick={() => seekByOffset(-10)}
+                  disabled={!isHost}
+                  className={`p-1.5 transition-colors relative flex items-center justify-center ${
+                    isHost
+                      ? 'text-white hover:text-[#ff7a00] cursor-pointer active:scale-90'
+                      : 'text-white/40 cursor-not-allowed'
+                  }`}
+                  title={isHost ? 'Rewind 10s (Left Arrow / J)' : 'Playback controlled by Host'}
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  <span className="text-[8px] font-mono font-bold absolute -bottom-0.5">10</span>
+                </button>
+
                 {/* Play/Pause Button (Host authorized, peer indicator) */}
                 <button
                   onClick={togglePlay}
                   disabled={!isHost}
                   className={`p-1.5 transition-colors ${
                     isHost
-                      ? 'text-white hover:text-[#ff7a00] cursor-pointer'
+                      ? 'text-white hover:text-[#ff7a00] cursor-pointer active:scale-90'
                       : 'text-white/60 cursor-not-allowed'
                   }`}
-                  title={isHost ? (isPlaying ? 'Pause' : 'Play') : 'Playback controlled by Host'}
+                  title={isHost ? (isPlaying ? 'Pause (Space / K)' : 'Play (Space / K)') : 'Playback controlled by Host'}
                 >
                   {isPlaying ? (
                     <Pause className="w-5 h-5 fill-current" />
@@ -730,11 +926,28 @@ export default function MoviePlayer({
                   )}
                 </button>
 
+                {/* Host +10s Forward Button */}
+                <button
+                  onClick={() => seekByOffset(10)}
+                  disabled={!isHost}
+                  className={`p-1.5 transition-colors relative flex items-center justify-center ${
+                    isHost
+                      ? 'text-white hover:text-[#ff7a00] cursor-pointer active:scale-90'
+                      : 'text-white/40 cursor-not-allowed'
+                  }`}
+                  title={isHost ? 'Forward 10s (Right Arrow / L)' : 'Playback controlled by Host'}
+                >
+                  <RotateCw className="w-4 h-4" />
+                  <span className="text-[8px] font-mono font-bold absolute -bottom-0.5">10</span>
+                </button>
+
+                <div className="h-4 w-[1px] bg-white/10 mx-0.5" />
+
                 {/* Local Volume Toggle */}
                 <button
                   onClick={toggleMute}
-                  className="p-1.5 hover:text-[#ff7a00] text-white transition-colors cursor-pointer"
-                  title="Toggle Local Audio"
+                  className="p-1.5 hover:text-[#ff7a00] text-white transition-colors cursor-pointer active:scale-90"
+                  title="Toggle Local Audio (M)"
                 >
                   {isMuted ? <VolumeX className="w-5 h-5 text-red-400" /> : <Volume2 className="w-5 h-5" />}
                 </button>
@@ -744,10 +957,10 @@ export default function MoviePlayer({
                   <div className="flex items-center gap-1.5">
                     <button
                       onClick={() => setShowSubtitles((prev) => !prev)}
-                      className={`p-1.5 transition-colors cursor-pointer ${
+                      className={`p-1.5 transition-colors cursor-pointer active:scale-90 ${
                         showSubtitles ? 'text-[#ff7a00]' : 'text-[#9aa6af] hover:text-white'
                       }`}
-                      title="Toggle Captions"
+                      title="Toggle Captions (C)"
                     >
                       <Subtitles className="w-5 h-5" />
                     </button>
@@ -772,19 +985,19 @@ export default function MoviePlayer({
               {/* Status & Custom Fullscreen Toggle */}
               <div className="flex items-center gap-2.5">
                 <span
-                  className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border ${
+                  className={`hidden sm:inline-block text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border ${
                     isHost
                       ? 'bg-[#ff7a00]/15 text-[#ff7a00] border-[#ff7a00]/30 shadow-glow-orange/20'
                       : 'bg-[#080d10] text-[#9aa6af] border-white/5'
                   }`}
                 >
-                  {isHost ? 'Host In Control' : 'Synced With Host'}
+                  {isHost ? 'Host Controls Active' : 'Synced With Host'}
                 </span>
 
                 <button
                   onClick={handleFullscreen}
-                  className="p-1.5 hover:text-[#ff7a00] text-white transition-colors cursor-pointer"
-                  title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+                  className="p-1.5 hover:text-[#ff7a00] text-white transition-colors cursor-pointer active:scale-90"
+                  title={isFullscreen ? 'Exit Fullscreen (F)' : 'Fullscreen (F)'}
                 >
                   {isFullscreen ? (
                     <Minimize className="w-5 h-5" />
