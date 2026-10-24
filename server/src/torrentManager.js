@@ -3,6 +3,24 @@ import axios from 'axios';
 import path from 'path';
 
 /**
+ * High-availability public trackers for rapid DHT & peer discovery.
+ * Injected automatically into all torrents to ensure swift connections
+ * even if the original torrent archive contains deprecated/dead trackers.
+ */
+export const MODERN_TRACKERS = [
+  'udp://tracker.opentrackr.org:1337/announce',
+  'udp://open.stealth.si:80/announce',
+  'udp://tracker.torrent.eu.org:451/announce',
+  'udp://explodie.org:6969/announce',
+  'udp://tracker.openbittorrent.com:6969/announce',
+  'http://tracker.openbittorrent.com:80/announce',
+  'https://opentracker.i2p.rocks:443/announce',
+  'wss://tracker.openwebtorrent.com',
+  'wss://tracker.btorrent.xyz',
+  'wss://tracker.webtorrent.dev'
+];
+
+/**
  * Utility to convert SRT subtitle text to WebVTT format for HTML5 video <track> elements.
  */
 export function srtToVtt(srtContent) {
@@ -76,14 +94,15 @@ class TorrentManager {
           reject(err);
         }, 45000); // 45s swarm connection timeout
 
-        this.client.add(torrentSource, (torrent) => {
+        // Ingest torrent with injected modern trackers for rapid peer connection
+        this.client.add(torrentSource, { announce: MODERN_TRACKERS }, async (torrent) => {
           clearTimeout(timeout);
           session.torrent = torrent;
           session.title = torrent.name || 'Untitled Cinema Stream';
 
           console.log(`[Torrent] Added: "${torrent.name}" for room: ${roomId} (InfoHash: ${torrent.infoHash})`);
 
-          // Deselect whole torrent first to prevent downloading unrelated files or random pieces
+          // Deselect whole torrent first to prevent downloading unrelated files
           torrent.deselect(0, torrent.pieces.length - 1, false);
 
           // Identify candidate video files (.mp4, .mkv, .webm, .avi)
@@ -108,22 +127,6 @@ class TorrentManager {
           // Set sequential priority for streaming
           primaryVideo.select();
 
-          // Prioritize start pieces and end pieces where MP4 moov metadata atom resides
-          const startPiece = primaryVideo._startPiece || 0;
-          const endPiece = primaryVideo._endPiece || (torrent.pieces.length - 1);
-          torrent.select(startPiece, Math.min(startPiece + 8, endPiece), 1);
-          torrent.select(Math.max(startPiece, endPiece - 8), endPiece, 1);
-
-          session.videoFile = primaryVideo;
-          session.fileSize = primaryVideo.length;
-          session.title = primaryVideo.name || torrent.name;
-
-          // Determine MIME type
-          const ext = path.extname(primaryVideo.name).toLowerCase();
-          if (ext === '.webm') session.mimeType = 'video/webm';
-          else if (ext === '.mkv') session.mimeType = 'video/x-matroska';
-          else session.mimeType = 'video/mp4';
-
           // Identify subtitle files (.srt or .vtt)
           const subExtensions = ['.srt', '.vtt'];
           const subs = torrent.files
@@ -132,10 +135,76 @@ class TorrentManager {
               index: idx,
               name: file.name,
               path: file.path,
-              fileRef: file
+              fileRef: file,
+              vttContent: null
             }));
 
+          // Select subtitle files with high priority so they download right away
+          for (const sub of subs) {
+            sub.fileRef.select(1);
+            // Pre-read subtitle contents into cache
+            const stream = sub.fileRef.createReadStream();
+            let acc = '';
+            stream.on('data', chunk => { acc += chunk.toString('utf-8'); });
+            stream.on('end', () => {
+              sub.vttContent = sub.name.toLowerCase().endsWith('.srt') ? srtToVtt(acc) : acc;
+            });
+          }
+
+          session.videoFile = primaryVideo;
+          session.fileSize = primaryVideo.length;
+          session.title = primaryVideo.name || torrent.name;
           session.subtitleFiles = subs;
+
+          // Determine MIME type
+          const ext = path.extname(primaryVideo.name).toLowerCase();
+          if (ext === '.webm') session.mimeType = 'video/webm';
+          else if (ext === '.mkv') session.mimeType = 'video/x-matroska';
+          else session.mimeType = 'video/mp4';
+
+          // Critical priority for piece 0 (contains MP4 container headers & metadata atom)
+          const startPiece = primaryVideo._startPiece || 0;
+          const endPiece = primaryVideo._endPiece || (torrent.pieces.length - 1);
+          torrent.critical(startPiece, Math.min(startPiece + 3, endPiece));
+
+          if (onProgress) {
+            onProgress({
+              status: 'buffering_stream',
+              message: 'Pre-buffering initial cinema stream pieces...'
+            });
+          }
+
+          // Await piece 0 verification before declaring stream ready so HTTP 206 starts instantly
+          await new Promise((readyResolve) => {
+            if (torrent.bitfield && torrent.bitfield.get(startPiece)) {
+              return readyResolve();
+            }
+
+            const onPiece = (p) => {
+              if (p === startPiece) {
+                torrent.off('piece', onPiece);
+                clearInterval(poll);
+                readyResolve();
+              }
+            };
+            torrent.on('piece', onPiece);
+
+            const poll = setInterval(() => {
+              if (torrent.bitfield && torrent.bitfield.get(startPiece)) {
+                torrent.off('piece', onPiece);
+                clearInterval(poll);
+                readyResolve();
+              }
+            }, 250);
+
+            // 15-second safety timeout so we never hang if swarm piece 0 verification is slow
+            setTimeout(() => {
+              torrent.off('piece', onPiece);
+              clearInterval(poll);
+              readyResolve();
+            }, 15000);
+          });
+
           session.status = 'ready';
 
           console.log(`[Torrent] Cinema Stream Ready: "${session.title}" (${(session.fileSize / (1024 * 1024)).toFixed(1)} MB, ${subs.length} subtitle tracks)`);
@@ -199,6 +268,14 @@ class TorrentManager {
         'Access-Control-Allow-Origin': '*'
       });
 
+      stream.on('error', (err) => {
+        if (!res.headersSent) {
+          res.status(500).end();
+        } else {
+          res.destroy();
+        }
+      });
+
       stream.pipe(res);
 
       req.on('close', () => {
@@ -213,6 +290,15 @@ class TorrentManager {
       });
 
       const stream = file.createReadStream();
+
+      stream.on('error', (err) => {
+        if (!res.headersSent) {
+          res.status(500).end();
+        } else {
+          res.destroy();
+        }
+      });
+
       stream.pipe(res);
 
       req.on('close', () => {
@@ -243,6 +329,13 @@ class TorrentManager {
       return res.status(404).send('Subtitle index not found');
     }
 
+    res.setHeader('Content-Type', 'text/vtt; charset=utf-8');
+
+    // Return cached WebVTT directly if available
+    if (sub.vttContent) {
+      return res.send(sub.vttContent);
+    }
+
     const file = sub.fileRef;
     const ext = path.extname(file.name).toLowerCase();
 
@@ -254,16 +347,12 @@ class TorrentManager {
     });
 
     stream.on('end', () => {
-      res.setHeader('Content-Type', 'text/vtt; charset=utf-8');
-      res.setHeader('Access-Control-Allow-Origin', '*');
-      if (ext === '.srt') {
-        res.send(srtToVtt(dataBuffer));
-      } else {
-        res.send(dataBuffer);
-      }
+      const vtt = ext === '.srt' ? srtToVtt(dataBuffer) : dataBuffer;
+      sub.vttContent = vtt;
+      res.send(vtt);
     });
 
-    stream.on('error', (err) => {
+    stream.on('error', () => {
       res.status(500).send('Error reading subtitle stream');
     });
   }

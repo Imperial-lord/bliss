@@ -23,6 +23,7 @@ export default function MoviePlayer({
   roomId,
   isHost = false,
   mediaStatus = 'idle',
+  mediaMessage = '',
   mediaTitle = '',
   subtitles = [],
   hostErrorMessage = '',
@@ -32,7 +33,9 @@ export default function MoviePlayer({
   remotePlayback = null
 }) {
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isBuffering, setIsBuffering] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
+  const [showAutoplayMutedHint, setShowAutoplayMutedHint] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [selectedSubIndex, setSelectedSubIndex] = useState(0);
@@ -59,7 +62,17 @@ export default function MoviePlayer({
         videoRef.current.currentTime = expectedTime;
       }
       videoRef.current.play().then(() => setIsPlaying(true)).catch((err) => {
-        if (err.name !== 'AbortError') console.warn(err);
+        if (err.name === 'NotAllowedError') {
+          // Chrome autoplay policy blocked unmuted sound - mute and retry smoothly
+          if (videoRef.current) {
+            videoRef.current.muted = true;
+            setIsMuted(true);
+            setShowAutoplayMutedHint(true);
+            videoRef.current.play().then(() => setIsPlaying(true)).catch(console.warn);
+          }
+        } else if (err.name !== 'AbortError') {
+          console.warn('[Peer Playback Error]:', err);
+        }
       });
     } else if (action === 'pause') {
       videoRef.current.pause();
@@ -290,7 +303,7 @@ export default function MoviePlayer({
       {/* ========================================================================= */}
       {/* 2. BUFFERING / SWARM RESOLUTION STATE */}
       {/* ========================================================================= */}
-      {mediaStatus === 'downloading_metadata' && (
+      {['downloading_metadata', 'fetching_torrent_file', 'connecting_swarm', 'buffering_stream'].includes(mediaStatus) && (
         <div className="relative w-full h-full flex flex-col items-center justify-center p-6 text-center">
           <div className="relative z-10 max-w-md w-full bg-[#12171c]/90 border border-white/10 rounded-3xl p-8 shadow-2xl backdrop-blur-md flex flex-col items-center">
             <div className="w-16 h-16 rounded-2xl bg-[#ff7a00]/15 border border-[#ff7a00]/30 flex items-center justify-center text-[#ff7a00] mb-5 shadow-glow-orange animate-pulse">
@@ -298,14 +311,14 @@ export default function MoviePlayer({
             </div>
 
             <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#ff7a00] mb-1.5">
-              P2P Swarm Buffering
+              P2P Cinema Swarm
             </span>
 
             <h3 className="font-display text-xl font-bold text-white tracking-tight mb-2">
-              Connecting to Movie Swarm...
+              Buffering Movie Stream...
             </h3>
             <p className="text-xs text-[#9aa6af] leading-relaxed max-w-sm mb-6">
-              Resolving torrent metadata, prioritizing sequential video pieces, and extracting subtitle tracks. Playback starts automatically.
+              {mediaMessage || 'Resolving torrent metadata, connecting to seeders, and caching stream headers. Playback will be ready in seconds.'}
             </p>
 
             {/* Simulated Audio/Video Equalizer Pulse */}
@@ -343,10 +356,17 @@ export default function MoviePlayer({
             playsInline
             crossOrigin="anonymous"
             preload="auto"
+            muted={isMuted}
             onTimeUpdate={handleTimeUpdate}
             onLoadedMetadata={handleTimeUpdate}
-            onPlay={() => setIsPlaying(true)}
+            onPlay={() => {
+              setIsPlaying(true);
+              setIsBuffering(false);
+            }}
             onPause={() => setIsPlaying(false)}
+            onWaiting={() => setIsBuffering(true)}
+            onPlaying={() => setIsBuffering(false)}
+            onCanPlay={() => setIsBuffering(false)}
             onError={(e) => console.warn('[Video Media Error]:', e)}
           >
             {subtitleSrc && showSubtitles && (
@@ -360,16 +380,76 @@ export default function MoviePlayer({
             )}
           </video>
 
+          {/* Buffering Spinner Overlay while playing */}
+          {isBuffering && isPlaying && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/30 backdrop-blur-[1px] pointer-events-none z-10">
+              <div className="w-14 h-14 rounded-2xl bg-[#12171c]/90 border border-[#ff7a00]/30 flex items-center justify-center text-[#ff7a00] shadow-glow-orange">
+                <Loader2 className="w-7 h-7 animate-spin" />
+              </div>
+            </div>
+          )}
+
+          {/* Autoplay Muted Notification Pill for Peers */}
+          {showAutoplayMutedHint && (
+            <div className="absolute bottom-20 right-6 z-30 animate-fade-in">
+              <button
+                onClick={() => {
+                  if (videoRef.current) {
+                    videoRef.current.muted = false;
+                    setIsMuted(false);
+                  }
+                  setShowAutoplayMutedHint(false);
+                }}
+                className="flex items-center gap-2 bg-[#ff7a00] hover:bg-[#ff9124] text-white text-xs font-bold px-4 py-2 rounded-full shadow-glow-orange transition-all hover:scale-105"
+              >
+                <VolumeX className="w-4 h-4 animate-pulse" />
+                <span>Audio Muted by Browser – Click to Unmute</span>
+              </button>
+            </div>
+          )}
+
           {/* Center Play Button Overlay for Host when Paused */}
           {!isPlaying && isHost && (
-            <button
-              onClick={togglePlay}
-              className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-[2px] transition-all hover:bg-black/30 z-10"
-            >
-              <div className="w-20 h-20 rounded-full bg-[#ff7a00] text-white flex items-center justify-center shadow-glow-orange transition-transform hover:scale-110">
-                <Play className="w-9 h-9 fill-current ml-1" />
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-[3px] z-10 p-6 text-center">
+              <div className="max-w-md w-full bg-[#12171c]/95 border border-[#ff7a00]/30 rounded-3xl p-6 shadow-2xl flex flex-col items-center animate-fade-in">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#ff7a00]/15 text-[#ff7a00] text-[10px] font-bold uppercase tracking-widest mb-3 border border-[#ff7a00]/30">
+                  <Sparkles className="w-3 h-3" />
+                  <span>Stream Ready</span>
+                </div>
+
+                <h4 className="text-white font-display font-bold text-lg mb-1 truncate max-w-full">
+                  {mediaTitle || 'Cinema Stream Ready'}
+                </h4>
+                <p className="text-xs text-[#9aa6af] mb-5">
+                  The movie stream is buffered and ready. Press play below to start synchronized playback for all peers.
+                </p>
+
+                <button
+                  onClick={togglePlay}
+                  className="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-[#ff7a00] to-[#ff3d2e] hover:from-[#ff9124] hover:to-[#ff5244] text-white text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2.5 shadow-glow-orange transition-all hover:scale-[1.02] active:scale-[0.98]"
+                >
+                  <Play className="w-4 h-4 fill-current" />
+                  <span>Start Cinema Playback</span>
+                </button>
               </div>
-            </button>
+            </div>
+          )}
+
+          {/* Peer Standby Card when stream is ready but Host has not started yet */}
+          {!isPlaying && !isHost && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 backdrop-blur-[2px] z-10 p-6 text-center pointer-events-none">
+              <div className="max-w-sm w-full bg-[#12171c]/90 border border-white/10 rounded-3xl p-6 shadow-2xl flex flex-col items-center">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 mb-3">
+                  <Film className="w-6 h-6 animate-pulse" />
+                </div>
+                <h4 className="text-white font-display font-bold text-base mb-1 truncate max-w-full">
+                  {mediaTitle || 'Movie Stream Ready'}
+                </h4>
+                <p className="text-xs text-[#9aa6af] leading-relaxed">
+                  The stream is ready on your device. Waiting for the room host to press play.
+                </p>
+              </div>
+            </div>
           )}
 
           {/* Top Header Badge Overlay */}

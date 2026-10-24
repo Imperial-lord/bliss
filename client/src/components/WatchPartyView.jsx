@@ -28,6 +28,7 @@ export default function WatchPartyView({
   // Cinema Streaming & Host Authority State
   const [mediaStatus, setMediaStatus] = useState(initialMedia?.status || 'idle');
   const [mediaTitle, setMediaTitle] = useState(initialMedia?.title || '');
+  const [mediaMessage, setMediaMessage] = useState('');
   const [subtitles, setSubtitles] = useState(initialMedia?.subtitles || []);
   const [hostErrorMessage, setHostErrorMessage] = useState('');
   const [remotePlayback, setRemotePlayback] = useState(initialMedia?.playback || null);
@@ -63,9 +64,11 @@ export default function WatchPartyView({
       console.log('[Socket] Movie status changed:', statusData);
       if (statusData.status) setMediaStatus(statusData.status);
       if (statusData.title) setMediaTitle(statusData.title);
+      if (statusData.message) setMediaMessage(statusData.message);
       if (statusData.subtitles) setSubtitles(statusData.subtitles);
       if (statusData.status === 'ready') {
         setHostErrorMessage('');
+        setMediaMessage('');
         if (isHost) {
           logCinemaSession({
             roomId,
@@ -238,6 +241,7 @@ export default function WatchPartyView({
               roomId={roomId}
               isHost={isHost}
               mediaStatus={mediaStatus}
+              mediaMessage={mediaMessage}
               mediaTitle={mediaTitle}
               subtitles={subtitles}
               hostErrorMessage={hostErrorMessage}
