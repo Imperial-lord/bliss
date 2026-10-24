@@ -68,3 +68,4 @@ assert.strictEqual(roomManager.rooms.has(testRoomId), false, 'Empty room must be
 console.log('✓ Clean room teardown verified');
 
 console.log('🎉 ALL TORRENT & HOST SYNC TESTS PASSED SUCCESSFULLY!');
+process.exit(0);

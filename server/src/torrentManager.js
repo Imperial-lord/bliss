@@ -1,6 +1,7 @@
 import WebTorrent from 'webtorrent';
 import axios from 'axios';
 import path from 'path';
+import { ociStorage } from './objectStorage.js';
 
 /**
  * High-availability public trackers for rapid DHT & peer discovery.
@@ -84,6 +85,8 @@ class TorrentManager {
     const session = {
       roomId,
       sourceUrl,
+      infoHash: null,
+      isCachedInOci: false,
       torrent: null,
       videoFile: null,
       subtitleFiles: [],
@@ -98,6 +101,29 @@ class TorrentManager {
 
     try {
       let torrentSource = sourceUrl.trim();
+
+      // Check if source contains a recognizable infoHash that is already cached in OCI Object Storage
+      const hashMatch = torrentSource.match(/(?:xt=urn:btih:|download\/|torrent\/)([a-fA-F0-9]{40})/i);
+      if (hashMatch) {
+        const candidateHash = hashMatch[1].toLowerCase();
+        if (await ociStorage.hasMovie(candidateHash)) {
+          console.log(`[Torrent] Movie ${candidateHash} found in OCI Object Storage! Instant cinema ready.`);
+          const meta = await ociStorage.getMovieMetadata(candidateHash);
+          session.infoHash = candidateHash;
+          session.isCachedInOci = true;
+          session.fileSize = meta.contentLength;
+          session.mimeType = meta.contentType;
+          session.title = cleanMovieTitle(torrentSource.split('/').pop() || 'Cached Cinema Movie');
+          session.status = 'ready';
+
+          return {
+            title: session.title,
+            fileSize: session.fileSize,
+            mimeType: session.mimeType,
+            subtitles: []
+          };
+        }
+      }
 
       // If it's an HTTP/HTTPS URL and not a magnet link, fetch the .torrent file buffer
       if (torrentSource.startsWith('http://') || torrentSource.startsWith('https://')) {
@@ -130,9 +156,16 @@ class TorrentManager {
         this.client.add(torrentSource, { announce: MODERN_TRACKERS }, async (torrent) => {
           clearTimeout(timeout);
           session.torrent = torrent;
+          session.infoHash = torrent.infoHash;
           session.title = torrent.name || 'Untitled Cinema Stream';
 
           console.log(`[Torrent] Added: "${torrent.name}" for room: ${roomId} (InfoHash: ${torrent.infoHash})`);
+
+          // Check if resolved infoHash is already cached in OCI
+          if (await ociStorage.hasMovie(torrent.infoHash)) {
+            console.log(`[Torrent] InfoHash ${torrent.infoHash} is cached in OCI Object Storage!`);
+            session.isCachedInOci = true;
+          }
 
           // Deselect whole torrent first to prevent downloading unrelated files
           torrent.deselect(0, torrent.pieces.length - 1, false);
@@ -182,6 +215,9 @@ class TorrentManager {
               const text = Buffer.from(ab).toString('utf-8');
               sub.vttContent = sub.name.toLowerCase().endsWith('.srt') ? srtToVtt(text) : text;
               console.log(`[Torrent] Subtitle track ${sub.index} ("${sub.name}") pre-cached (${sub.vttContent.length} chars)`);
+              if (torrent && torrent.infoHash) {
+                ociStorage.saveSubtitles(torrent.infoHash, sub.index, sub.vttContent);
+              }
             }).catch((err) => {
               console.warn(`[Torrent] Warning pre-caching subtitle ${sub.name}:`, err.message);
             });
@@ -191,6 +227,12 @@ class TorrentManager {
           session.fileSize = primaryVideo.length;
           session.title = cleanMovieTitle(torrent.name || primaryVideo.name);
           session.subtitleFiles = subs;
+
+          // Background upload to OCI Object Storage when torrent finishes downloading 100%
+          torrent.on('done', () => {
+            console.log(`[Torrent] Download complete for "${session.title}". Archiving to OCI Object Storage...`);
+            ociStorage.saveMovieStream(torrent.infoHash, primaryVideo.createReadStream(), primaryVideo.length, session.mimeType);
+          });
 
           // Determine MIME type
           const ext = path.extname(primaryVideo.name).toLowerCase();
@@ -275,8 +317,17 @@ class TorrentManager {
     }
 
     const session = this.roomSessions.get(roomId);
-    if (!session || !session.videoFile || session.status !== 'ready') {
+    if (!session || session.status !== 'ready') {
       return res.status(404).json({ error: 'No active video stream ready for this room' });
+    }
+
+    // If movie is cached in OCI Object Storage, stream natively from OCI
+    if (session.isCachedInOci && session.infoHash) {
+      return ociStorage.streamMovie(session.infoHash, req, res);
+    }
+
+    if (!session.videoFile) {
+      return res.status(404).json({ error: 'Video file stream not found' });
     }
 
     const file = session.videoFile;
@@ -370,6 +421,15 @@ class TorrentManager {
     // Return cached WebVTT directly if available
     if (sub.vttContent) {
       return res.send(sub.vttContent);
+    }
+
+    // Try reading cached subtitle from OCI Object Storage
+    if (session.infoHash) {
+      const ociVtt = await ociStorage.getSubtitles(session.infoHash, subIndex);
+      if (ociVtt) {
+        sub.vttContent = ociVtt;
+        return res.send(ociVtt);
+      }
     }
 
     try {
