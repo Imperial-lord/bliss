@@ -3,12 +3,86 @@ import {
   createUserWithEmailAndPassword,
   signOut as fbSignOut,
   onAuthStateChanged,
-  updateProfile
+  updateProfile,
+  getIdToken,
+  sendPasswordResetEmail
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from './firebase';
 
 const LOCAL_STORAGE_KEY = 'bliss_current_user_profile';
+
+/**
+ * Retrieve verified Firebase Auth ID token for zero-trust server authentication.
+ * Awaits authStateReady if available to guarantee auth is initialized.
+ */
+export async function getVerifiedIdToken(forceRefresh = false) {
+  if (!auth) return null;
+
+  try {
+    if (typeof auth.authStateReady === 'function') {
+      await auth.authStateReady();
+    }
+  } catch (err) {
+    console.warn('[userService] authStateReady error:', err);
+  }
+
+  if (auth.currentUser) {
+    try {
+      return await getIdToken(auth.currentUser, forceRefresh);
+    } catch (err) {
+      console.warn('[userService] getIdToken error on auth.currentUser:', err);
+    }
+  }
+
+  // Fallback listener in case auth is resolving asynchronously
+  return new Promise((resolve) => {
+    let resolved = false;
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (!resolved) {
+        resolved = true;
+        unsubscribe();
+        if (user) {
+          try {
+            const token = await getIdToken(user, forceRefresh);
+            resolve(token);
+          } catch {
+            resolve(null);
+          }
+        } else {
+          resolve(null);
+        }
+      }
+    });
+
+    setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        unsubscribe();
+        resolve(null);
+      }
+    }, 2000);
+  });
+}
+
+/**
+ * Send password reset email for an existing user account.
+ */
+export async function resetUserPassword(email) {
+  if (!auth) {
+    throw new Error('Firebase Authentication is not initialized.');
+  }
+  const cleanEmail = String(email).trim().toLowerCase();
+  if (!cleanEmail) {
+    throw new Error('Please enter your email address to reset password.');
+  }
+  try {
+    await sendPasswordResetEmail(auth, cleanEmail);
+  } catch (err) {
+    console.error('Password reset error:', err);
+    throw new Error(getAuthErrorMessage(err));
+  }
+}
 
 /**
  * Helper to translate Firebase Auth error codes into clean user-facing messages
@@ -278,13 +352,15 @@ export function subscribeToAuthState(callback) {
   return onAuthStateChanged(auth, async (firebaseUser) => {
     if (firebaseUser) {
       const firestoreProfile = await getProfileFromFirestore(firebaseUser.uid);
-      const profile = firestoreProfile || {
+      const profile = {
+        ...(firestoreProfile || {}),
         uid: firebaseUser.uid,
-        displayName: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
+        displayName: firestoreProfile?.displayName || firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
         email: firebaseUser.email,
-        avatarId: 'cyber-rebel',
-        bio: '',
-        favoriteGenres: []
+        avatarId: firestoreProfile?.avatarId || 'cyber-rebel',
+        bio: firestoreProfile?.bio || '',
+        favoriteGenres: firestoreProfile?.favoriteGenres || [],
+        getIdToken: (forceRefresh) => getIdToken(firebaseUser, forceRefresh)
       };
       setLocalProfile(profile);
       callback(profile);

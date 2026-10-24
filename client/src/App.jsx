@@ -85,6 +85,13 @@ export default function App() {
     initialVideo: true
   });
 
+  const handleAuthRequired = useCallback((notice) => {
+    setCurrentView('landing');
+    setAuthModalNotice(notice || 'Authentication required. Please sign in to access or host cinema rooms.');
+    setAuthModalMode('signin');
+    setIsAuthModalOpen(true);
+  }, []);
+
   // WebRTC hook active when in call
   const {
     peers,
@@ -101,7 +108,8 @@ export default function App() {
     avatarId: currentUser?.avatarId || 'cyber-rebel',
     localStream,
     isAudioEnabled,
-    isVideoEnabled
+    isVideoEnabled,
+    onAuthRequired: handleAuthRequired
   });
 
   const handleOpenAuth = (mode = 'signup', notice = '') => {

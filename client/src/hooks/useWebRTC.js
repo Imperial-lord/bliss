@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { getSocket, connectSocket } from '../services/socket';
 import { RTC_CONFIG } from '../config/webrtc';
+import { getVerifiedIdToken } from '../services/userService';
 
 export function useWebRTC({
   roomId,
@@ -10,7 +11,8 @@ export function useWebRTC({
   avatarId,
   localStream,
   isAudioEnabled,
-  isVideoEnabled
+  isVideoEnabled,
+  onAuthRequired
 }) {
   // Remote peers map: peerId -> { socketId, userName, avatarId, audioEnabled, videoEnabled, stream }
   const [peers, setPeers] = useState({});
@@ -175,8 +177,18 @@ export function useWebRTC({
         if (currentUser && typeof currentUser.getIdToken === 'function') {
           idToken = await currentUser.getIdToken();
         }
+        if (!idToken) {
+          idToken = await getVerifiedIdToken();
+        }
       } catch (tokenErr) {
         console.warn('[WebRTC Auth] Could not retrieve Firebase ID token:', tokenErr);
+      }
+
+      // If still no token and user ID exists, attempt force refresh
+      if (!idToken && userId) {
+        try {
+          idToken = await getVerifiedIdToken(true);
+        } catch {}
       }
 
       socket.emit(
@@ -194,6 +206,9 @@ export function useWebRTC({
           if (response?.error) {
             console.error('Failed to join room:', response.error);
             setConnectionStatus('disconnected');
+            if (response.error.toLowerCase().includes('auth') && typeof onAuthRequired === 'function') {
+              onAuthRequired(response.error);
+            }
             return;
           }
 

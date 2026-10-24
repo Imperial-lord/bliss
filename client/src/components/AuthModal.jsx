@@ -14,7 +14,7 @@ import {
   Film
 } from 'lucide-react';
 import { AVATAR_OPTIONS, MOVIE_GENRES, GENRE_EMOJIS } from '../constants/avatars';
-import { signUpUser, signInUser } from '../services/userService';
+import { signUpUser, signInUser, resetUserPassword } from '../services/userService';
 
 export default function AuthModal({
   isOpen,
@@ -32,12 +32,15 @@ export default function AuthModal({
   const [bio, setBio] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [resetSent, setResetSent] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
 
   // Always sync mode to initialMode whenever modal opens or initialMode prop changes
   useEffect(() => {
     if (isOpen) {
       setMode(initialMode);
       setError('');
+      setResetSent(false);
     }
   }, [isOpen, initialMode]);
 
@@ -226,6 +229,38 @@ export default function AuthModal({
                     placeholder="••••••••"
                     className="w-full h-11 px-4 rounded-xl bg-[#080d10] border border-white/10 text-white placeholder-[#9aa6af]/40 focus:outline-none focus:border-[#ff7a00] focus:ring-2 focus:ring-[#ff7a00]/20 transition-all text-sm font-sans"
                   />
+                  {mode === 'signin' && (
+                    <div className="flex justify-end mt-1.5">
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (!email.trim()) {
+                            setError('Please enter your email address above to receive a password reset link.');
+                            return;
+                          }
+                          try {
+                            setResetLoading(true);
+                            setError('');
+                            await resetUserPassword(email);
+                            setResetSent(true);
+                          } catch (e) {
+                            setError(e.message);
+                          } finally {
+                            setResetLoading(false);
+                          }
+                        }}
+                        disabled={resetLoading}
+                        className="text-xs text-[#9aa6af] hover:text-[#ff7a00] transition-colors"
+                      >
+                        {resetLoading ? 'Sending link...' : resetSent ? '✓ Reset link sent to inbox' : 'Forgot password?'}
+                      </button>
+                    </div>
+                  )}
+                  {resetSent && mode === 'signin' && (
+                    <p className="text-xs text-emerald-400 mt-1">
+                      Password reset email sent! Check your inbox to set a new password.
+                    </p>
+                  )}
                 </div>
 
                 {/* Tagline / Bio (Only in Sign Up) */}
