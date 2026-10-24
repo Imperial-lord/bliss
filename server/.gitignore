@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Runtime logs
+logs/
+*.log
+npm-debug.log*
+
+# Torrent Temp files
+/tmp/webtorrent/
+.torrent-cache/
+
+# Editor & OS
+.vscode/
+.idea/
+.DS_Store

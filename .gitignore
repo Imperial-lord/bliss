@@ -17,7 +17,17 @@ extracted-files/
 .env
 *.env
 .env.*
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+client/.env
+client/.env.*
+server/.env
+server/.env.*
 !.env.example
+!client/.env.example
+!server/.env.example
 *.pem
 *.key
 *.cert
