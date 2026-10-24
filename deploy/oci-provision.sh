@@ -156,8 +156,9 @@ launch_vm() {
   local private_ip="$4"
   local ocpus="$5"
   local mem_gb="$6"
+  local assign_pub_ip="$7"
 
-  echo "🚀 Launching ${name} (${shape}, IP: ${private_ip}, Boot: 47GB)..."
+  echo "🚀 Launching ${name} (${shape}, IP: ${private_ip}, Boot: 50GB, AssignPublicIP: ${assign_pub_ip})..."
   
   local CMD_ARGS=(
     oci compute instance launch
@@ -168,9 +169,9 @@ launch_vm() {
     --image-id "${image}"
     --subnet-id "${SUBNET_ID}"
     --private-ip "${private_ip}"
-    --boot-volume-size-in-gbs 47
+    --boot-volume-size-in-gbs 50
     --ssh-authorized-keys-file "${SSH_KEY_PATH}.pub"
-    --assign-public-ip true
+    --assign-public-ip "${assign_pub_ip}"
     --wait-for-state "RUNNING"
     --query "data.id"
     --raw-output
@@ -187,20 +188,20 @@ echo "========================================================"
 echo "🖥️ Step 8: Launching 4 Always Free Compute Instances"
 echo "========================================================"
 
-# Launch VM 1 (AMD Micro)
-VM1_ID=$(launch_vm "bliss-vm1-edge-router" "VM.Standard.E2.1.Micro" "${IMAGE_AMD}" "10.0.1.10" 1 1)
+# Launch VM 1 (AMD Micro - no ephemeral public IP, reserved IP assigned below)
+VM1_ID=$(launch_vm "bliss-vm1-edge-router" "VM.Standard.E2.1.Micro" "${IMAGE_AMD}" "10.0.1.10" 1 1 false)
 echo "✓ VM 1 Running: ${VM1_ID}"
 
-# Launch VM 2 (AMD Micro)
-VM2_ID=$(launch_vm "bliss-vm2-frontend" "VM.Standard.E2.1.Micro" "${IMAGE_AMD}" "10.0.1.20" 1 1)
+# Launch VM 2 (AMD Micro - ephemeral public IP for outbound package installs)
+VM2_ID=$(launch_vm "bliss-vm2-frontend" "VM.Standard.E2.1.Micro" "${IMAGE_AMD}" "10.0.1.20" 1 1 true)
 echo "✓ VM 2 Running: ${VM2_ID}"
 
-# Launch VM 3 (Ampere Arm)
-VM3_ID=$(launch_vm "bliss-vm3-signaling" "VM.Standard.A1.Flex" "${IMAGE_ARM}" "10.0.1.30" 1 6)
+# Launch VM 3 (Ampere Arm - ephemeral public IP for outbound package installs)
+VM3_ID=$(launch_vm "bliss-vm3-signaling" "VM.Standard.A1.Flex" "${IMAGE_ARM}" "10.0.1.30" 1 6 true)
 echo "✓ VM 3 Running: ${VM3_ID}"
 
-# Launch VM 4 (Ampere Arm)
-VM4_ID=$(launch_vm "bliss-vm4-torrent" "VM.Standard.A1.Flex" "${IMAGE_ARM}" "10.0.1.40" 1 6)
+# Launch VM 4 (Ampere Arm - ephemeral public IP for outbound package installs & OCI Object Storage)
+VM4_ID=$(launch_vm "bliss-vm4-torrent" "VM.Standard.A1.Flex" "${IMAGE_ARM}" "10.0.1.40" 1 6 true)
 echo "✓ VM 4 Running: ${VM4_ID}"
 
 # Attach Reserved IP to VM 1 VNIC
