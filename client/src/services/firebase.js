@@ -3,14 +3,20 @@ import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyBC8HKDgt5M9QKtGfWkdIZTQoT3mS0tnu0",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "bliss-watchparty.firebaseapp.com",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "bliss-watchparty",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "bliss-watchparty.firebasestorage.app",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "249672897754",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:249672897754:web:785b477cc46cd7f205c1e3",
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-KW3HWMNTEX"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || '',
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || '',
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || '',
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || '',
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '',
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || '',
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || ''
 };
+
+if (!firebaseConfig.apiKey && import.meta.env.DEV) {
+  console.warn(
+    '[Firebase Config Warning]: VITE_FIREBASE_API_KEY is not defined. Please create client/.env based on client/.env.example.'
+  );
+}
 
 // Initialize Firebase only once
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);

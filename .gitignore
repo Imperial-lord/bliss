@@ -1,1 +1,57 @@
-node_modules
+# Dependencies
+node_modules/
+*/node_modules/
+.pnpm-store/
+
+# Production / Build Outputs
+dist/
+*/dist/
+build/
+*/build/
+out/
+*/out/
+extracted-files/
+*.tsbuildinfo
+
+# Environment Variables & Secrets (CRITICAL)
+.env
+*.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.cert
+service-account*.json
+credentials.json
+
+# Logs and Runtime Data
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.pid
+*.seed
+*.pid.lock
+
+# WebTorrent Temp Storage
+/tmp/webtorrent/
+.torrent-cache/
+
+# Testing and Coverage
+coverage/
+.nyc_output/
+.eslintcache
+.stylelintcache
+
+# IDEs, Editors, and OS-Specific Files
+.idea/
+.vscode/
+*.sw?
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+.DS_Store
+Thumbs.db

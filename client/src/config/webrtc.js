@@ -7,4 +7,12 @@ export const RTC_CONFIG = {
   iceCandidatePoolSize: 10
 };
 
-export const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:5001';
+// In production, default to window.location.origin (same-origin reverse proxy)
+// In local development, fall back to http://localhost:5001
+export const SERVER_URL =
+  import.meta.env.VITE_SERVER_URL ||
+  (typeof window !== 'undefined' &&
+  window.location.hostname !== 'localhost' &&
+  window.location.hostname !== '127.0.0.1'
+    ? window.location.origin
+    : 'http://localhost:5001');
