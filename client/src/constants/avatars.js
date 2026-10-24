@@ -53,3 +53,14 @@ export const MOVIE_GENRES = [
   'Documentaries',
   'Comedy & Satire'
 ];
+
+export const GENRE_EMOJIS = {
+  'Sci-Fi & Cyberpunk': '🛸',
+  'Action Thrillers': '💥',
+  'Anime & Animation': '⚡',
+  'Horror & Mystery': '🩸',
+  'Indie Cinema': '🎞️',
+  'Classic Noir': '🍸',
+  'Documentaries': '🌍',
+  'Comedy & Satire': '🍿'
+};

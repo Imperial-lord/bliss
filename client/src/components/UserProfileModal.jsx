@@ -15,7 +15,7 @@ import {
   Zap,
   User
 } from 'lucide-react';
-import { AVATAR_OPTIONS, MOVIE_GENRES } from '../constants/avatars';
+import { AVATAR_OPTIONS, MOVIE_GENRES, GENRE_EMOJIS } from '../constants/avatars';
 import { updateUserProfile } from '../services/userService';
 
 export default function UserProfileModal({ isOpen, onClose, user, onSignOut, onUpdateProfile }) {
@@ -234,9 +234,10 @@ export default function UserProfileModal({ isOpen, onClose, user, onSignOut, onU
                     user.favoriteGenres.map((g) => (
                       <span
                         key={g}
-                        className="px-3 py-1.5 rounded-xl bg-[#12171c] border border-white/10 text-xs font-medium text-white/90 shadow-sm"
+                        className="px-3 py-1.5 rounded-full bg-[#12171c] border border-white/10 text-xs font-medium text-white/90 shadow-sm flex items-center gap-1.5"
                       >
-                        {g}
+                        <span className="text-xs">{GENRE_EMOJIS[g] || '🎬'}</span>
+                        <span>{g}</span>
                       </span>
                     ))
                   ) : (
@@ -381,7 +382,7 @@ export default function UserProfileModal({ isOpen, onClose, user, onSignOut, onU
                 </div>
               </div>
 
-              {/* Favorite Movie Genres (Airy Tag Cloud) */}
+              {/* Favorite Movie Genres (Organic Cinema Badge Cloud) */}
               <div>
                 <div className="flex items-center justify-between mb-2.5">
                   <label className="text-xs font-bold uppercase tracking-wider text-[#9aa6af] flex items-center gap-1.5">
@@ -393,26 +394,31 @@ export default function UserProfileModal({ isOpen, onClose, user, onSignOut, onU
                   </span>
                 </div>
 
-                <div className="flex flex-wrap gap-2">
-                  {MOVIE_GENRES.map((genre) => {
+                <div className="flex flex-wrap gap-2 sm:gap-2.5 items-center">
+                  {MOVIE_GENRES.map((genre, idx) => {
                     const isSelected = favoriteGenres.includes(genre);
+                    const emoji = GENRE_EMOJIS[genre] || '🎬';
+                    const tilt = idx % 3 === 0 ? 'hover:-rotate-1' : idx % 3 === 1 ? 'hover:rotate-1' : 'hover:-rotate-0.5';
                     return (
                       <button
                         type="button"
                         key={genre}
                         onClick={() => toggleGenre(genre)}
-                        className={`px-3 py-1.5 rounded-full text-xs transition-all duration-150 flex items-center gap-1.5 ${
+                        className={`group relative px-3 py-1.5 rounded-full text-xs transition-all duration-200 flex items-center gap-2 cursor-pointer select-none ${tilt} ${
                           isSelected
-                            ? 'bg-[#ff7a00]/15 text-[#ff7a00] border border-[#ff7a00]/50 shadow-glow-orange/20 font-semibold'
-                            : 'bg-white/[0.04] text-[#9aa6af] hover:text-white hover:bg-white/[0.08] border border-white/10'
+                            ? 'bg-gradient-to-r from-[#ff7a00]/25 via-[#ff3d2e]/20 to-[#ff7a00]/15 text-white border border-[#ff7a00]/60 shadow-glow-orange/30 font-semibold scale-[1.02]'
+                            : 'bg-[#0d1217] text-[#9aa6af] hover:text-white hover:bg-[#141b22] border border-white/10 hover:border-white/20 hover:-translate-y-0.5'
                         }`}
                       >
-                        <span
-                          className={`w-1.5 h-1.5 rounded-full ${
-                            isSelected ? 'bg-[#ff7a00]' : 'bg-white/20'
-                          }`}
-                        />
-                        <span>{genre}</span>
+                        <span className="text-xs sm:text-sm shrink-0 group-hover:scale-110 transition-transform">
+                          {emoji}
+                        </span>
+                        <span className="tracking-tight">{genre}</span>
+                        {isSelected ? (
+                          <Check className="w-3 h-3 text-[#ff7a00] stroke-[3] shrink-0" />
+                        ) : (
+                          <span className="w-1.5 h-1.5 rounded-full bg-white/15 group-hover:bg-white/40 shrink-0 transition-colors" />
+                        )}
                       </button>
                     );
                   })}
