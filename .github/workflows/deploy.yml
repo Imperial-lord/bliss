@@ -45,33 +45,37 @@ jobs:
           VITE_FIREBASE_MEASUREMENT_ID: ${{ secrets.VITE_FIREBASE_MEASUREMENT_ID }}
         run: npm run build --prefix client
 
-      - name: Copy Client Dist to VM 1 (Static SPA)
+      - name: Archive Server Bundle
+        run: tar --exclude='server/node_modules' -czf server-bundle.tar.gz server docker-compose.yml
+
+      - name: Copy Deploy Artifacts to VM 1
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.OCI_HOST }}
           username: ubuntu
           key: ${{ secrets.OCI_SSH_KEY }}
-          source: "client/dist/*"
+          source: "client/dist/*,server-bundle.tar.gz"
           target: "/tmp/bliss-deploy"
-          strip_components: 2
+          strip_components: 0
 
-      - name: Update VM 1 Nginx & Deploy to VM 2 Backend
+      - name: Deploy Frontend & Backend on VM 1
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.OCI_HOST }}
           username: ubuntu
           key: ${{ secrets.OCI_SSH_KEY }}
           script: |
-            # 1. Move new frontend build to /var/www/bliss on VM 1
+            # 1. Update React SPA frontend
             sudo mkdir -p /var/www/bliss
-            sudo cp -r /tmp/bliss-deploy/* /var/www/bliss/
-            sudo rm -rf /tmp/bliss-deploy
+            sudo cp -r /tmp/bliss-deploy/client/dist/* /var/www/bliss/
             sudo systemctl reload nginx
             echo "✓ VM 1 frontend updated and Nginx reloaded"
 
-            # 2. Sync server files to VM 2 and restart container
-            ssh -o StrictHostKeyChecking=no -i ~/.ssh/bliss_oci_key ubuntu@10.0.1.20 "
-              cd /home/ubuntu/bliss &&
-              docker compose restart backend
-            "
-            echo "✓ VM 2 backend reloaded"
+            # 2. Update Node.js backend Docker container
+            mkdir -p /home/ubuntu/bliss
+            tar -xzf /tmp/bliss-deploy/server-bundle.tar.gz -C /home/ubuntu/bliss/
+            cd /home/ubuntu/bliss
+            sudo docker compose build backend
+            sudo docker compose up -d backend
+            sudo rm -rf /tmp/bliss-deploy
+            echo "✓ Bliss backend container updated and live"
