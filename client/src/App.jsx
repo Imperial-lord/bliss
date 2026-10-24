@@ -272,7 +272,7 @@ export default function App() {
 
       <Footer />
 
-      {/* Auth Modal Popup (Consistent max-w-3xl across all modals) */}
+      {/* Auth Modal Popup (Consistent max-w-4xl across all modals) */}
       <AuthModal
         isOpen={isAuthModalOpen}
         initialMode={authModalMode}
@@ -284,7 +284,7 @@ export default function App() {
         onAuthSuccess={handleAuthSuccess}
       />
 
-      {/* User Profile Customization Modal (Consistent max-w-3xl across all modals) */}
+      {/* User Profile Customization Modal (Consistent max-w-4xl across all modals) */}
       <UserProfileModal
         isOpen={isProfileModalOpen}
         onClose={() => setIsProfileModalOpen(false)}

@@ -188,7 +188,7 @@ export default function LandingHero({ onStartParty, onJoinWithCode, currentUser 
         {/* ========================================================================= */}
         {/* INTERACTIVE THEATER STAGE (LHS MOVIE + RHS ZOOM CALL - TELEPORT DESIGN) */}
         {/* ========================================================================= */}
-        <div className="mt-8 max-w-6xl mx-auto">
+        <div className="mt-10 w-full">
           {/* Header pill above the preview */}
           <div className="flex items-center justify-between mb-3 px-2">
             <div className="flex items-center gap-2">
