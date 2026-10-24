@@ -338,7 +338,6 @@ export default function MoviePlayer({
         }
         videoRef.current.pause();
         setIsPlaying(false);
-        triggerToast({ type: 'pause', text: 'Paused' });
         if (onSyncPlayback) {
           onSyncPlayback('pause', videoRef.current.currentTime);
         }
@@ -352,7 +351,6 @@ export default function MoviePlayer({
         await promise;
         setIsPlaying(true);
         setHasStartedPlayback(true);
-        triggerToast({ type: 'play', text: 'Playing' });
         if (onSyncPlayback) {
           onSyncPlayback('play', videoRef.current.currentTime);
         }
@@ -758,8 +756,6 @@ export default function MoviePlayer({
                 {feedbackToast.type === 'forward' && <RotateCw className="w-8 h-8 text-[#ff7a00]" />}
                 {feedbackToast.type === 'backward' && <RotateCcw className="w-8 h-8 text-[#ff7a00]" />}
                 {feedbackToast.type === 'volume' && <Volume2 className="w-8 h-8 text-[#ff7a00]" />}
-                {feedbackToast.type === 'play' && <Play className="w-8 h-8 text-[#ff7a00] fill-current" />}
-                {feedbackToast.type === 'pause' && <Pause className="w-8 h-8 text-[#ff7a00] fill-current" />}
                 {feedbackToast.type === 'locked' && <Lock className="w-8 h-8 text-amber-400" />}
                 <span className="text-xs font-mono font-bold tracking-wider">{feedbackToast.text}</span>
               </div>
