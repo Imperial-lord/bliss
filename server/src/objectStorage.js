@@ -129,63 +129,98 @@ class OciObjectStorageService {
       return res.status(503).send('Object storage not configured');
     }
 
-    const objectName = `movies/${infoHash}/video.mp4`;
-    const meta = await this.getMovieMetadata(infoHash);
-    if (!meta) {
-      return res.status(404).send('Cached movie not found in OCI Object Storage');
-    }
-
-    const fileSize = meta.contentLength;
-    const rangeHeader = req.headers.range;
-
-    if (rangeHeader) {
-      const parts = rangeHeader.replace(/bytes=/, '').split('-');
-      const start = parseInt(parts[0], 10);
-      const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
-
-      if (start >= fileSize || end >= fileSize) {
-        res.status(416).set('Content-Range', `bytes */${fileSize}`);
-        return res.end();
+    try {
+      const objectName = `movies/${infoHash}/video.mp4`;
+      const meta = await this.getMovieMetadata(infoHash);
+      if (!meta) {
+        return res.status(404).send('Cached movie not found in OCI Object Storage');
       }
 
-      const chunkSize = end - start + 1;
-      const getRes = await this.client.getObject({
-        namespaceName: this.namespaceName,
-        bucketName: this.bucketName,
-        objectName,
-        range: new common.Range(start, end)
-      });
+      const fileSize = meta.contentLength;
+      const rangeHeader = req.headers.range;
 
-      res.writeHead(206, {
-        'Content-Range': `bytes ${start}-${end}/${fileSize}`,
-        'Accept-Ranges': 'bytes',
-        'Content-Length': chunkSize,
-        'Content-Type': meta.contentType,
-        'Access-Control-Allow-Origin': '*'
-      });
+      if (rangeHeader) {
+        const parts = rangeHeader.replace(/bytes=/, '').split('-');
+        const start = parseInt(parts[0], 10);
+        const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
 
-      getRes.value.pipe(res);
-      req.on('close', () => {
-        if (getRes.value.destroy) getRes.value.destroy();
-      });
-    } else {
-      const getRes = await this.client.getObject({
-        namespaceName: this.namespaceName,
-        bucketName: this.bucketName,
-        objectName
-      });
+        if (start >= fileSize || end >= fileSize) {
+          res.status(416).set('Content-Range', `bytes */${fileSize}`);
+          return res.end();
+        }
 
-      res.writeHead(200, {
-        'Content-Length': fileSize,
-        'Content-Type': meta.contentType,
-        'Accept-Ranges': 'bytes',
-        'Access-Control-Allow-Origin': '*'
-      });
+        const chunkSize = end - start + 1;
+        const getRes = await this.client.getObject({
+          namespaceName: this.namespaceName,
+          bucketName: this.bucketName,
+          objectName,
+          range: new common.Range(start, end)
+        });
 
-      getRes.value.pipe(res);
-      req.on('close', () => {
-        if (getRes.value.destroy) getRes.value.destroy();
-      });
+        res.writeHead(206, {
+          'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+          'Accept-Ranges': 'bytes',
+          'Content-Length': chunkSize,
+          'Content-Type': meta.contentType || 'video/mp4',
+          'Access-Control-Allow-Origin': '*'
+        });
+
+        const nodeStream = typeof getRes.value?.pipe === 'function'
+          ? getRes.value
+          : Readable.fromWeb(getRes.value);
+
+        nodeStream.on('error', (err) => {
+          console.warn('[OCI Stream Error]:', err.message);
+          if (!res.headersSent) {
+            res.status(500).end();
+          } else {
+            res.destroy();
+          }
+        });
+
+        nodeStream.pipe(res);
+        req.on('close', () => {
+          if (nodeStream.destroy) nodeStream.destroy();
+        });
+      } else {
+        const getRes = await this.client.getObject({
+          namespaceName: this.namespaceName,
+          bucketName: this.bucketName,
+          objectName
+        });
+
+        res.writeHead(200, {
+          'Content-Length': fileSize,
+          'Content-Type': meta.contentType || 'video/mp4',
+          'Accept-Ranges': 'bytes',
+          'Access-Control-Allow-Origin': '*'
+        });
+
+        const nodeStream = typeof getRes.value?.pipe === 'function'
+          ? getRes.value
+          : Readable.fromWeb(getRes.value);
+
+        nodeStream.on('error', (err) => {
+          console.warn('[OCI Stream Error]:', err.message);
+          if (!res.headersSent) {
+            res.status(500).end();
+          } else {
+            res.destroy();
+          }
+        });
+
+        nodeStream.pipe(res);
+        req.on('close', () => {
+          if (nodeStream.destroy) nodeStream.destroy();
+        });
+      }
+    } catch (err) {
+      console.error('[OCI Stream Catch Error]:', err.message);
+      if (!res.headersSent) {
+        res.status(500).send('Error streaming cached movie from OCI');
+      } else {
+        res.destroy();
+      }
     }
   }
 

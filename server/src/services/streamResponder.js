@@ -26,7 +26,14 @@ export function streamVideoResponse(session, req, res) {
 
   // If movie is archived in OCI Object Storage, stream natively from OCI
   if (session.isCachedInOci && session.infoHash) {
-    return ociStorage.streamMovie(session.infoHash, req, res);
+    return ociStorage.streamMovie(session.infoHash, req, res).catch((err) => {
+      console.error('[Stream Responder OCI Error]:', err.message);
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Failed to stream cached movie from OCI' });
+      } else {
+        res.destroy();
+      }
+    });
   }
 
   if (!session.videoFile) {

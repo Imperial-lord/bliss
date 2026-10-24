@@ -26,14 +26,59 @@ async function testOciObjectStorage() {
   assert.strictEqual(retrievedVtt, testVtt, 'Retrieved WebVTT content must match uploaded content');
   console.log('✓ Subtitle roundtrip verified successfully!');
 
-  // Cleanup test object
+  console.log('3. Testing streamMovie with HTTP Range request...');
+  const mockVideoBuffer = Buffer.from('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghijklmnopqrstuvwxyz');
+  await ociStorage.client.putObject({
+    namespaceName: ociStorage.namespaceName,
+    bucketName: ociStorage.bucketName,
+    objectName: `movies/${testInfoHash}/video.mp4`,
+    putObjectBody: mockVideoBuffer,
+    contentLength: mockVideoBuffer.length,
+    contentType: 'video/mp4'
+  });
+
+  const { Writable } = await import('stream');
+  const chunks = [];
+  let statusCode = null;
+  let headers = null;
+
+  const mockRes = new Writable({
+    write(chunk, encoding, callback) {
+      chunks.push(chunk);
+      callback();
+    }
+  });
+  mockRes.writeHead = (code, h) => {
+    statusCode = code;
+    headers = h;
+  };
+  mockRes.setHeader = () => {};
+
+  const mockReq = {
+    headers: { range: 'bytes=0-9' },
+    on: () => {}
+  };
+
+  await ociStorage.streamMovie(testInfoHash, mockReq, mockRes);
+  await new Promise(r => mockRes.on('finish', r));
+
+  assert.strictEqual(statusCode, 206, 'Must respond with HTTP 206 Partial Content');
+  assert.strictEqual(Buffer.concat(chunks).toString(), 'ABCDEFGHIJ', 'Streamed chunk must match requested range');
+  console.log('✓ streamMovie HTTP 206 range streaming verified successfully!');
+
+  // Cleanup test objects
   try {
     await ociStorage.client.deleteObject({
       namespaceName: ociStorage.namespaceName,
       bucketName: ociStorage.bucketName,
       objectName: `movies/${testInfoHash}/sub_${testSubIndex}.vtt`
     });
-    console.log('✓ Test subtitle object cleaned up');
+    await ociStorage.client.deleteObject({
+      namespaceName: ociStorage.namespaceName,
+      bucketName: ociStorage.bucketName,
+      objectName: `movies/${testInfoHash}/video.mp4`
+    });
+    console.log('✓ Test objects cleaned up');
   } catch (e) {
     // ignore
   }
