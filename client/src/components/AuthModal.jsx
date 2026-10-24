@@ -239,7 +239,7 @@ export default function AuthModal({
                       value={bio}
                       onChange={(e) => setBio(e.target.value)}
                       placeholder="e.g. Christopher Nolan enthusiast"
-                      className="w-full h-11 px-4 rounded-xl bg-[#080d10] border border-white/10 text-white placeholder-[#9aa6af]/40 focus:outline-none focus:border-[#ff7a00] transition-colors text-xs font-sans"
+                      className="w-full h-11 px-4 rounded-xl bg-[#080d10] border border-white/10 text-white placeholder-[#9aa6af]/40 focus:outline-none focus:border-[#ff7a00] focus:ring-2 focus:ring-[#ff7a00]/20 transition-all text-sm font-sans"
                     />
                   </div>
                 )}
