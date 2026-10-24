@@ -35,9 +35,10 @@ async function runLiveE2ETest() {
   }, TIMEOUT_MS);
 
   const socket = io(TARGET_URL, {
-    transports: ['websocket'],
-    timeout: 10000,
-    reconnection: false
+    transports: ['polling', 'websocket'],
+    timeout: 20000,
+    reconnection: true,
+    reconnectionAttempts: 3
   });
 
   await new Promise((resolve, reject) => {

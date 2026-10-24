@@ -9,10 +9,22 @@ import { torrentManager } from './torrentManager.js';
 
 const app = express();
 
-app.use(cors({
-  origin: CLIENT_ORIGINS,
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Allow requests with no origin (e.g. mobile apps, curl, CI test runners, Node clients)
+    if (!origin) return callback(null, true);
+    if (CLIENT_ORIGINS.includes('*') || CLIENT_ORIGINS.includes(origin)) {
+      return callback(null, true);
+    }
+    if (origin.endsWith('bliss.webhop.me') || origin.includes('localhost') || origin.includes('127.0.0.1')) {
+      return callback(null, true);
+    }
+    return callback(null, false);
+  },
   credentials: true
-}));
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
 
 // Basic health check endpoint
@@ -69,7 +81,7 @@ const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: {
-    origin: CLIENT_ORIGINS,
+    origin: corsOptions.origin,
     methods: ['GET', 'POST'],
     credentials: true
   },
