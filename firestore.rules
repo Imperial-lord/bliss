@@ -12,5 +12,10 @@ service cloud.firestore {
     match /rooms/{roomId} {
       allow read, write: if true;
     }
+
+    // Cinema session metadata for future analytics (zero chat/video storage)
+    match /cinema_sessions/{sessionId} {
+      allow read, write: if true;
+    }
   }
 }

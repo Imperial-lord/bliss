@@ -5,6 +5,7 @@ import cors from 'cors';
 import { PORT, CLIENT_ORIGINS } from './config.js';
 import { setupSocketEvents } from './socketEvents.js';
 import { roomManager } from './rooms.js';
+import { torrentManager } from './torrentManager.js';
 
 const app = express();
 
@@ -36,6 +37,32 @@ app.get('/api/rooms', (req, res) => {
     }));
   }
   res.json({ rooms: summary });
+});
+
+// Torrent Video Streaming Endpoint (HTTP 206 Range Requests)
+app.get('/api/stream/:roomId', (req, res) => {
+  torrentManager.streamVideo(req.params.roomId, req, res);
+});
+
+// WebVTT Subtitle Stream Endpoint
+app.get('/api/subtitles/:roomId/:index.vtt', (req, res) => {
+  torrentManager.streamSubtitle(req.params.roomId, req.params.index, req, res);
+});
+
+// Torrent Status Endpoint
+app.get('/api/torrent/status/:roomId', (req, res) => {
+  const session = torrentManager.getSession(req.params.roomId);
+  if (!session) {
+    return res.json({ status: 'idle' });
+  }
+  res.json({
+    status: session.status,
+    title: session.title,
+    fileSize: session.fileSize,
+    mimeType: session.mimeType,
+    subtitles: session.subtitleFiles.map(s => ({ index: s.index, name: s.name })),
+    error: session.error
+  });
 });
 
 const server = http.createServer(app);

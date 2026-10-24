@@ -7,6 +7,8 @@ export function useWebRTC({ roomId, userId, userName, avatarId, localStream, isA
   const [peers, setPeers] = useState({});
   const [connectionStatus, setConnectionStatus] = useState('connecting'); // 'connecting' | 'connected' | 'disconnected'
   const [selfPeer, setSelfPeer] = useState(null);
+  const [isHost, setIsHost] = useState(false);
+  const [roomMedia, setRoomMedia] = useState(null);
 
   // Map of peerId -> RTCPeerConnection
   const peerConnections = useRef(new Map());
@@ -128,6 +130,10 @@ export function useWebRTC({ roomId, userId, userName, avatarId, localStream, isA
           }
 
           setSelfPeer(response.self);
+          setIsHost(!!response.isHost);
+          if (response.media) {
+            setRoomMedia(response.media);
+          }
 
           // Build peers state for existing peers
           const initialPeers = {};
@@ -265,8 +271,13 @@ export function useWebRTC({ roomId, userId, userName, avatarId, localStream, isA
     socket.on('peer-joined', handlePeerJoined);
     socket.on('receive-signal', handleReceiveSignal);
     socket.on('ice-candidate', handleIceCandidate);
+    const handleHostChanged = ({ hostSocketId }) => {
+      setIsHost(socket.id === hostSocketId);
+    };
+
     socket.on('peer-media-updated', handlePeerMediaUpdated);
     socket.on('peer-left', handlePeerLeft);
+    socket.on('host-changed', handleHostChanged);
     socket.on('disconnect', handleDisconnect);
 
     return () => {
@@ -276,6 +287,7 @@ export function useWebRTC({ roomId, userId, userName, avatarId, localStream, isA
       socket.off('ice-candidate', handleIceCandidate);
       socket.off('peer-media-updated', handlePeerMediaUpdated);
       socket.off('peer-left', handlePeerLeft);
+      socket.off('host-changed', handleHostChanged);
       socket.off('disconnect', handleDisconnect);
 
       // Leave room and close all peer connections
@@ -304,6 +316,8 @@ export function useWebRTC({ roomId, userId, userName, avatarId, localStream, isA
   return {
     peers: Object.values(peers),
     selfPeer,
-    connectionStatus
+    connectionStatus,
+    isHost,
+    roomMedia
   };
 }

@@ -83,7 +83,9 @@ export default function App() {
   // WebRTC hook active when in call
   const {
     peers,
-    connectionStatus
+    connectionStatus,
+    isHost,
+    roomMedia
   } = useWebRTC({
     roomId: currentView === 'call' ? roomId : null,
     userId: currentUser?.uid,
@@ -204,6 +206,8 @@ export default function App() {
         isVideoEnabled={isVideoEnabled}
         peers={peers}
         connectionStatus={connectionStatus}
+        isHost={isHost}
+        initialMedia={roomMedia}
         onToggleAudio={toggleAudio}
         onToggleVideo={toggleVideo}
         onLeaveCall={handleLeaveCall}

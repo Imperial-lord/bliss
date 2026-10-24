@@ -295,7 +295,7 @@ export default function UserProfileModal({ isOpen, onClose, user, onSignOut, onU
                     type="text"
                     value={bio}
                     onChange={(e) => setBio(e.target.value)}
-                    placeholder="e.g. Christopher Nolan enthusiast & movie lover"
+                    placeholder="e.g. Christopher Nolan enthusiast"
                     className="w-full h-11 px-4 rounded-xl bg-[#080d10] border border-white/10 text-white placeholder-[#9aa6af]/40 focus:outline-none focus:border-[#ff7a00] focus:ring-2 focus:ring-[#ff7a00]/20 transition-all text-sm font-sans"
                   />
                 </div>
@@ -357,11 +357,10 @@ export default function UserProfileModal({ isOpen, onClose, user, onSignOut, onU
                       >
                         <div className="relative">
                           <div
-                            className={`w-10 h-10 sm:w-11 sm:h-11 rounded-full ${avatar.bg} flex items-center justify-center text-lg shadow-md transition-all duration-150 ${
-                              isSelected
+                            className={`w-10 h-10 sm:w-11 sm:h-11 rounded-full ${avatar.bg} flex items-center justify-center text-lg shadow-md transition-all duration-150 ${isSelected
                                 ? 'ring-2 ring-[#ff7a00] shadow-glow-orange opacity-100'
                                 : 'opacity-50 group-hover:opacity-100 group-hover:ring-1 group-hover:ring-white/20'
-                            }`}
+                              }`}
                           >
                             {avatar.emoji}
                           </div>
@@ -372,9 +371,8 @@ export default function UserProfileModal({ isOpen, onClose, user, onSignOut, onU
                           )}
                         </div>
                         <span
-                          className={`text-[10px] font-medium mt-1.5 transition-colors ${
-                            isSelected ? 'text-[#ff7a00] font-bold' : 'text-[#9aa6af]/70 group-hover:text-white'
-                          }`}
+                          className={`text-[10px] font-medium mt-1.5 transition-colors ${isSelected ? 'text-[#ff7a00] font-bold' : 'text-[#9aa6af]/70 group-hover:text-white'
+                            }`}
                         >
                           {avatar.name.split(' ')[0]}
                         </span>
@@ -406,11 +404,10 @@ export default function UserProfileModal({ isOpen, onClose, user, onSignOut, onU
                         type="button"
                         key={genre}
                         onClick={() => toggleGenre(genre)}
-                        className={`group relative px-3 py-1.5 rounded-full text-xs transition-all duration-200 flex items-center gap-2 cursor-pointer select-none ${tilt} ${
-                          isSelected
+                        className={`group relative px-3 py-1.5 rounded-full text-xs transition-all duration-200 flex items-center gap-2 cursor-pointer select-none ${tilt} ${isSelected
                             ? 'bg-gradient-to-r from-[#ff7a00]/25 via-[#ff3d2e]/20 to-[#ff7a00]/15 text-white border border-[#ff7a00]/60 shadow-glow-orange/30 font-semibold scale-[1.02]'
                             : 'bg-[#0d1217] text-[#9aa6af] hover:text-white hover:bg-[#141b22] border border-white/10 hover:border-white/20 hover:-translate-y-0.5'
-                        }`}
+                          }`}
                       >
                         <span className="text-xs sm:text-sm shrink-0 group-hover:scale-110 transition-transform">
                           {emoji}

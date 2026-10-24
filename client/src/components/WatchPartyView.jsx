@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Film, Users, ShieldCheck, ArrowLeft, Radio } from 'lucide-react';
+import { Film, Users, ShieldCheck, ArrowLeft, Radio, Sparkles } from 'lucide-react';
 import MoviePlayer from './MoviePlayer';
 import ZoomVideoSidebar from './ZoomVideoSidebar';
 import CallControls from './CallControls';
 import { getSocket } from '../services/socket';
+import { logCinemaSession } from '../services/sessionAnalytics';
 
 export default function WatchPartyView({
   roomId,
@@ -14,6 +15,8 @@ export default function WatchPartyView({
   isVideoEnabled,
   peers,
   connectionStatus,
+  isHost = false,
+  initialMedia = null,
   onToggleAudio,
   onToggleVideo,
   onLeaveCall
@@ -22,7 +25,24 @@ export default function WatchPartyView({
   const [chatMessages, setChatMessages] = useState([]);
   const [activeReactions, setActiveReactions] = useState([]);
 
-  // Socket chat and reaction listeners
+  // Cinema Streaming & Host Authority State
+  const [mediaStatus, setMediaStatus] = useState(initialMedia?.status || 'idle');
+  const [mediaTitle, setMediaTitle] = useState(initialMedia?.title || '');
+  const [subtitles, setSubtitles] = useState(initialMedia?.subtitles || []);
+  const [hostErrorMessage, setHostErrorMessage] = useState('');
+  const [remotePlayback, setRemotePlayback] = useState(initialMedia?.playback || null);
+
+  // Sync state if initialMedia changes
+  useEffect(() => {
+    if (initialMedia) {
+      if (initialMedia.status) setMediaStatus(initialMedia.status);
+      if (initialMedia.title) setMediaTitle(initialMedia.title);
+      if (initialMedia.subtitles) setSubtitles(initialMedia.subtitles);
+      if (initialMedia.playback) setRemotePlayback(initialMedia.playback);
+    }
+  }, [initialMedia]);
+
+  // Socket chat, reaction, and torrent streaming listeners
   useEffect(() => {
     const socket = getSocket();
     if (!socket) return;
@@ -33,20 +53,77 @@ export default function WatchPartyView({
 
     const handleReceiveReaction = (react) => {
       setActiveReactions((prev) => [...prev, react]);
-      // Remove after 3.5 seconds
       setTimeout(() => {
         setActiveReactions((prev) => prev.filter((r) => r.id !== react.id));
       }, 3500);
     };
 
+    // Cinema Streaming Socket Handlers
+    const handleMovieStatusChanged = (statusData) => {
+      console.log('[Socket] Movie status changed:', statusData);
+      if (statusData.status) setMediaStatus(statusData.status);
+      if (statusData.title) setMediaTitle(statusData.title);
+      if (statusData.subtitles) setSubtitles(statusData.subtitles);
+      if (statusData.status === 'ready') {
+        setHostErrorMessage('');
+        if (isHost) {
+          logCinemaSession({
+            roomId,
+            hostUid: currentUser?.uid,
+            title: statusData.title || 'Torrent Cinema Stream',
+            totalViewers: peers.length + 1
+          });
+        }
+      }
+    };
+
+    // CRITICAL REQUIREMENT: Host-only error banner delivery
+    const handleHostMovieError = ({ error }) => {
+      console.warn('[Host Error Received]:', error);
+      setHostErrorMessage(error || 'Failed to cue movie stream.');
+      setMediaStatus('idle');
+    };
+
+    const handlePlaybackUpdated = (playbackData) => {
+      setRemotePlayback(playbackData);
+    };
+
     socket.on('receive-chat', handleReceiveChat);
     socket.on('receive-reaction', handleReceiveReaction);
+    socket.on('movie-status-changed', handleMovieStatusChanged);
+    socket.on('host-movie-error', handleHostMovieError);
+    socket.on('playback-updated', handlePlaybackUpdated);
 
     return () => {
       socket.off('receive-chat', handleReceiveChat);
       socket.off('receive-reaction', handleReceiveReaction);
+      socket.off('movie-status-changed', handleMovieStatusChanged);
+      socket.off('host-movie-error', handleHostMovieError);
+      socket.off('playback-updated', handlePlaybackUpdated);
     };
   }, []);
+
+  const handleCueMovie = (url) => {
+    const socket = getSocket();
+    if (socket && socket.connected) {
+      setHostErrorMessage('');
+      socket.emit('set-movie-source', {
+        roomId,
+        sourceUrl: url
+      });
+    }
+  };
+
+  const handleSyncPlayback = (action, currentTime) => {
+    const socket = getSocket();
+    if (socket && socket.connected) {
+      socket.emit('sync-playback', {
+        roomId,
+        action,
+        currentTime
+      });
+    }
+  };
 
   const handleSendMessage = (text) => {
     const socket = getSocket();
@@ -58,7 +135,6 @@ export default function WatchPartyView({
         avatarId: currentUser?.avatarId || 'cyber-rebel'
       });
     } else {
-      // Local fallback if offline
       setChatMessages((prev) => [
         ...prev,
         {
@@ -80,7 +156,6 @@ export default function WatchPartyView({
         senderName: userName
       });
     }
-    // Also trigger locally immediately for feedback
     const localReact = {
       id: `local_react_${Date.now()}`,
       emoji,
@@ -120,12 +195,22 @@ export default function WatchPartyView({
             <span className="text-[#9aa6af]">Room:</span>
             <span className="font-bold text-[#ff7a00]">{roomId}</span>
           </div>
+
+          {/* Host Badge Indicator */}
+          {isHost && (
+            <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#ff7a00]/15 text-[#ff7a00] text-[10px] font-bold uppercase tracking-wider border border-[#ff7a00]/30 shadow-glow-orange/20">
+              <Sparkles className="w-3 h-3" />
+              <span>Room Host</span>
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-1.5 text-xs text-[#9aa6af] font-semibold uppercase tracking-wider bg-[#080d10] px-3 py-1.5 rounded-full border border-white/5">
+          <div className="flex items-center gap-2 text-xs font-semibold text-[#9aa6af] bg-[#080d10] px-3 py-1.5 rounded-full border border-white/5">
             <Users className="w-3.5 h-3.5 text-[#ff7a00]" />
-            <span>{totalParticipants} {totalParticipants === 1 ? 'Viewer' : 'Viewers'}</span>
+            <span>
+              {totalParticipants} {totalParticipants === 1 ? 'Viewer' : 'Viewers'}
+            </span>
           </div>
 
           <div className="flex items-center gap-1.5 text-xs font-semibold">
@@ -149,7 +234,18 @@ export default function WatchPartyView({
         <div className="w-full h-full grid grid-cols-1 lg:grid-cols-12 gap-4">
           {/* LHS: Movie Streaming Theater Screen */}
           <div className="lg:col-span-8 xl:col-span-9 h-full flex flex-col min-h-[300px]">
-            <MoviePlayer reactions={activeReactions} />
+            <MoviePlayer
+              roomId={roomId}
+              isHost={isHost}
+              mediaStatus={mediaStatus}
+              mediaTitle={mediaTitle}
+              subtitles={subtitles}
+              hostErrorMessage={hostErrorMessage}
+              reactions={activeReactions}
+              onCueMovie={handleCueMovie}
+              onSyncPlayback={handleSyncPlayback}
+              remotePlayback={remotePlayback}
+            />
           </div>
 
           {/* RHS: Zoom-like Video Call Panel for Multiple People */}
