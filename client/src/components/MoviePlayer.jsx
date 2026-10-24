@@ -23,6 +23,38 @@ import {
 import { SERVER_URL } from '../config/webrtc';
 
 /**
+ * Formats messy torrent file and release names into clean, human-readable movie titles.
+ * E.g. "The.Dark.Knight.2008.720p.BluRay.x264.YIFY.mp4" -> "The Dark Knight (2008)"
+ */
+export function cleanMovieTitle(raw) {
+  if (!raw || typeof raw !== 'string') return 'Cinema Stream';
+
+  let clean = raw.replace(/\.(mp4|mkv|avi|webm|mov|m4v|flv)$/i, '');
+  clean = clean.replace(/\[[^\]]*\]/g, ' ');
+
+  const parenYear = clean.match(/(.*?)\s*\((19\d{2}|20\d{2})\).*/i);
+  if (parenYear && parenYear[1].trim().length > 0) {
+    const title = parenYear[1].replace(/[._+]/g, ' ').replace(/\s+/g, ' ').trim();
+    return `${title} (${parenYear[2]})`;
+  }
+
+  clean = clean.replace(/[._+]/g, ' ');
+  const yearMatch = clean.match(/\b(19\d{2}|20\d{2})\b/);
+  if (yearMatch) {
+    const year = yearMatch[1];
+    let titlePart = clean.slice(0, yearMatch.index).replace(/[()]/g, '').trim();
+    titlePart = titlePart.replace(/\s+/g, ' ');
+    if (titlePart.length > 0) {
+      return `${titlePart} (${year})`;
+    }
+  }
+
+  const tagsRegex = /\b(720p|1080p|2160p|4k|bluray|brrip|bdrip|webrip|web-dl|webdl|dvdrip|hdrip|x264|x265|hevc|h264|yify|yts|sparks|rarbg|galaxy|aac|ac3|dts|remastered|extended|directors cut|unrated)\b.*/i;
+  clean = clean.replace(tagsRegex, '').replace(/\s+/g, ' ').trim();
+  return clean || raw;
+}
+
+/**
  * Robust WebVTT subtitle parser.
  * Converts WebVTT cue blocks into structured { start, end, text } timestamps in seconds.
  */
@@ -98,6 +130,9 @@ export default function MoviePlayer({
   const playPromiseRef = useRef(null);
   const controlsTimeoutRef = useRef(null);
   const feedbackTimeoutRef = useRef(null);
+
+  // Formatted human-readable cinema title
+  const displayTitle = cleanMovieTitle(mediaTitle);
 
   // Trigger brief visual feedback overlay (play, pause, +/-10s, volume)
   const triggerToast = useCallback((toast) => {
@@ -778,7 +813,7 @@ export default function MoviePlayer({
                 </div>
 
                 <h4 className="text-white font-display font-bold text-lg mb-1 truncate max-w-full">
-                  {mediaTitle || 'Cinema Stream Ready'}
+                  {displayTitle || 'Cinema Stream Ready'}
                 </h4>
                 <p className="text-xs text-[#9aa6af] mb-5">
                   The movie stream is buffered and ready. Press play below or press Spacebar to start synchronized playback for all peers.
@@ -803,7 +838,7 @@ export default function MoviePlayer({
                   <Film className="w-6 h-6 animate-pulse" />
                 </div>
                 <h4 className="text-white font-display font-bold text-base mb-1 truncate max-w-full">
-                  {mediaTitle || 'Movie Stream Ready'}
+                  {displayTitle || 'Movie Stream Ready'}
                 </h4>
                 <p className="text-xs text-[#9aa6af] leading-relaxed">
                   The stream is ready on your device. Waiting for the room host to press play.
@@ -841,7 +876,7 @@ export default function MoviePlayer({
           >
             <div className="flex items-center gap-2 bg-[#080d10]/90 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-white/10 text-xs font-bold text-white shadow max-w-[65%] truncate pointer-events-auto">
               <Film className="w-3.5 h-3.5 text-[#ff7a00] shrink-0" />
-              <span className="truncate">{mediaTitle || 'Synchronized Cinema'}</span>
+              <span className="truncate">{displayTitle || 'Synchronized Cinema'}</span>
             </div>
 
             <div className="flex items-center gap-2 pointer-events-auto">
@@ -912,17 +947,17 @@ export default function MoviePlayer({
                 <button
                   onClick={togglePlay}
                   disabled={!isHost}
-                  className={`h-8 px-3 rounded-lg flex items-center justify-center transition-all ${
+                  className={`h-7 w-7 rounded-md flex items-center justify-center transition-all ${
                     isHost
-                      ? 'bg-gradient-to-r from-[#ff7a00] to-[#ff3d2e] hover:from-[#ff9124] hover:to-[#ff5244] text-white shadow-glow-orange cursor-pointer active:scale-95'
-                      : 'bg-white/5 text-white/40 cursor-not-allowed'
+                      ? 'bg-gradient-to-r from-[#ff7a00] to-[#ff3d2e] hover:from-[#ff9124] hover:to-[#ff5244] text-white shadow-glow-orange cursor-pointer active:scale-90'
+                      : 'bg-white/5 text-white/30 cursor-not-allowed'
                   }`}
                   title={isHost ? (isPlaying ? 'Pause (Space / K)' : 'Play (Space / K)') : 'Playback controlled by Host'}
                 >
                   {isPlaying ? (
-                    <Pause className="w-3.5 h-3.5 fill-current" />
+                    <Pause className="w-2.5 h-2.5 fill-current" />
                   ) : (
-                    <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
+                    <Play className="w-2.5 h-2.5 fill-current ml-0.5" />
                   )}
                 </button>
 

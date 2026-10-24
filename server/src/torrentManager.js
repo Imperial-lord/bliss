@@ -21,6 +21,38 @@ export const MODERN_TRACKERS = [
 ];
 
 /**
+ * Formats messy torrent file and release names into clean, human-readable movie titles.
+ * E.g. "The.Dark.Knight.2008.720p.BluRay.x264.YIFY.mp4" -> "The Dark Knight (2008)"
+ */
+export function cleanMovieTitle(raw) {
+  if (!raw || typeof raw !== 'string') return 'Cinema Stream';
+
+  let clean = raw.replace(/\.(mp4|mkv|avi|webm|mov|m4v|flv)$/i, '');
+  clean = clean.replace(/\[[^\]]*\]/g, ' ');
+
+  const parenYear = clean.match(/(.*?)\s*\((19\d{2}|20\d{2})\).*/i);
+  if (parenYear && parenYear[1].trim().length > 0) {
+    const title = parenYear[1].replace(/[._+]/g, ' ').replace(/\s+/g, ' ').trim();
+    return `${title} (${parenYear[2]})`;
+  }
+
+  clean = clean.replace(/[._+]/g, ' ');
+  const yearMatch = clean.match(/\b(19\d{2}|20\d{2})\b/);
+  if (yearMatch) {
+    const year = yearMatch[1];
+    let titlePart = clean.slice(0, yearMatch.index).replace(/[()]/g, '').trim();
+    titlePart = titlePart.replace(/\s+/g, ' ');
+    if (titlePart.length > 0) {
+      return `${titlePart} (${year})`;
+    }
+  }
+
+  const tagsRegex = /\b(720p|1080p|2160p|4k|bluray|brrip|bdrip|webrip|web-dl|webdl|dvdrip|hdrip|x264|x265|hevc|h264|yify|yts|sparks|rarbg|galaxy|aac|ac3|dts|remastered|extended|directors cut|unrated)\b.*/i;
+  clean = clean.replace(tagsRegex, '').replace(/\s+/g, ' ').trim();
+  return clean || raw;
+}
+
+/**
  * Utility to convert SRT subtitle text to WebVTT format for HTML5 video <track> elements.
  */
 export function srtToVtt(srtContent) {
@@ -157,7 +189,7 @@ class TorrentManager {
 
           session.videoFile = primaryVideo;
           session.fileSize = primaryVideo.length;
-          session.title = primaryVideo.name || torrent.name;
+          session.title = cleanMovieTitle(torrent.name || primaryVideo.name);
           session.subtitleFiles = subs;
 
           // Determine MIME type
