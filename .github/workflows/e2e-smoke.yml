@@ -1,0 +1,35 @@
+name: E2E Smoke Test
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Run weekly on Sunday at midnight UTC (~3 min/month)
+    - cron: '0 0 * * 0'
+
+concurrency:
+  group: e2e-smoke
+  cancel-in-progress: true
+
+jobs:
+  smoke-test:
+    name: Production Smoke Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install Server Dependencies
+        run: npm ci --prefix server
+
+      - name: Run Live E2E Streaming Test
+        env:
+          TARGET_URL: https://bliss.webhop.me
+        run: node server/test-live-e2e-streaming.mjs
