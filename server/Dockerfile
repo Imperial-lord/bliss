@@ -1,10 +1,10 @@
-# Production Dockerfile for Bliss Backend (Arm64 / VM 3 & VM 4)
-FROM node:22-alpine
+# Production Dockerfile for Bliss Backend (glibc / Debian slim)
+FROM node:22-bookworm-slim
 
 WORKDIR /app
 
 # Install build tools if needed for native modules
-RUN apk add --no-cache python3 make g++
+RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ && rm -rf /var/lib/apt/lists/*
 
 COPY package*.json ./
 RUN npm ci --omit=dev
