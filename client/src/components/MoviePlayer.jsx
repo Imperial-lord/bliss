@@ -276,6 +276,8 @@ export default function MoviePlayer({
     }
   }, []);
 
+  const lastHardSeekTimeRef = useRef(0);
+
   // Sync peer video with host authoritative remote playback
   useEffect(() => {
     if (isHost || !remotePlayback || !videoRef.current) return;
@@ -289,13 +291,41 @@ export default function MoviePlayer({
     const clockOffset = serverNowRef - Date.now();
     const currentEstimatedServerNow = Date.now() + clockOffset;
 
-    if (effectiveAction === 'play' || (effectiveAction === 'heartbeat' && isEffectivePlaying)) {
+    if (effectiveAction === 'seek') {
+      // Explicit host seek
+      if (typeof targetTime === 'number') {
+        videoRef.current.currentTime = targetTime;
+        lastHardSeekTimeRef.current = Date.now();
+      }
+      if (isEffectivePlaying) {
+        videoRef.current
+          .play()
+          .then(() => {
+            setIsPlaying(true);
+            setHasStartedPlayback(true);
+          })
+          .catch(console.warn);
+      }
+    } else if (effectiveAction === 'pause') {
+      videoRef.current.pause();
+      setIsPlaying(false);
+      if (videoRef.current.playbackRate !== 1.0) {
+        videoRef.current.playbackRate = 1.0;
+      }
+      if (typeof targetTime === 'number' && Math.abs(videoRef.current.currentTime - targetTime) > 1.5) {
+        videoRef.current.currentTime = targetTime;
+        lastHardSeekTimeRef.current = Date.now();
+      }
+    } else if (effectiveAction === 'play') {
       const elapsed = Math.max(0, (currentEstimatedServerNow - updatedAt) / 1000);
       const expectedTime = targetTime + elapsed;
 
-      if (Math.abs(videoRef.current.currentTime - expectedTime) > 0.8) {
+      // Only hard-seek on 'play' if drift is large (> 3.5s) to avoid canceling initial buffer
+      if (Math.abs(videoRef.current.currentTime - expectedTime) > 3.5 && !videoRef.current.seeking) {
         videoRef.current.currentTime = expectedTime;
+        lastHardSeekTimeRef.current = Date.now();
       }
+
       videoRef.current
         .play()
         .then(() => {
@@ -321,29 +351,23 @@ export default function MoviePlayer({
             console.warn('[Peer Playback Error]:', err);
           }
         });
-    } else if (effectiveAction === 'pause' || effectiveAction === 'buffering') {
-      videoRef.current.pause();
-      setIsPlaying(false);
-      if (typeof targetTime === 'number' && Math.abs(videoRef.current.currentTime - targetTime) > 0.5) {
-        videoRef.current.currentTime = targetTime;
-      }
-    } else if (effectiveAction === 'seek') {
-      if (typeof targetTime === 'number') {
-        videoRef.current.currentTime = targetTime;
-      }
-      if (isEffectivePlaying) {
+    } else if (effectiveAction === 'heartbeat') {
+      // Heartbeat: do NOT violently seek. Ensure video is playing if host is playing.
+      if (isEffectivePlaying && videoRef.current.paused && !videoRef.current.seeking && videoRef.current.readyState >= 2) {
         videoRef.current
           .play()
           .then(() => {
             setIsPlaying(true);
             setHasStartedPlayback(true);
           })
-          .catch(console.warn);
+          .catch((err) => {
+            if (err.name !== 'AbortError') console.warn('[Heartbeat Play Error]:', err);
+          });
       }
     }
   }, [remotePlayback, isHost]);
 
-  // Periodic drift correction for non-host peers
+  // Adaptive, non-disruptive drift correction for non-host peers
   useEffect(() => {
     if (isHost || !videoRef.current || !remotePlayback) return;
 
@@ -351,7 +375,11 @@ export default function MoviePlayer({
     if (!isEffectivePlaying) return;
 
     const interval = setInterval(() => {
-      if (!videoRef.current || videoRef.current.paused) return;
+      const video = videoRef.current;
+      if (!video || video.paused) return;
+
+      // Do not interrupt when actively seeking or waiting on initial buffer chunks
+      if (video.seeking || video.readyState < 3) return;
 
       const serverNowRef = remotePlayback.serverTime || remotePlayback.updatedAt || Date.now();
       const clockOffset = serverNowRef - Date.now();
@@ -359,15 +387,46 @@ export default function MoviePlayer({
 
       const elapsed = Math.max(0, (currentEstimatedServerNow - remotePlayback.updatedAt) / 1000);
       const expected = remotePlayback.currentTime + elapsed;
-      const drift = Math.abs(videoRef.current.currentTime - expected);
+      const diff = expected - video.currentTime; // Positive: peer is behind host. Negative: peer is ahead.
+      const absDiff = Math.abs(diff);
 
-      if (drift > 1.2) {
-        console.log(`[Cinema Sync] Correcting drift (${drift.toFixed(2)}s) to ${expected.toFixed(2)}s`);
-        videoRef.current.currentTime = expected;
+      // Tier 1: In sync (< 0.5s difference) -> Normal speed
+      if (absDiff < 0.5) {
+        if (video.playbackRate !== 1.0) {
+          video.playbackRate = 1.0;
+        }
+        return;
       }
-    }, 3000);
 
-    return () => clearInterval(interval);
+      // Tier 2: Small drift (0.5s - 3.0s) -> Smooth pitch-neutral rate glide (NEVER hard-seek!)
+      // This completely avoids aborting HTTP Range streams or triggering buffer stalls!
+      if (absDiff >= 0.5 && absDiff <= 3.0) {
+        if (diff > 0) {
+          // Peer is slightly behind host -> play 6% faster to smoothly catch up
+          video.playbackRate = 1.06;
+        } else {
+          // Peer is slightly ahead of host -> play 6% slower to let host catch up
+          video.playbackRate = 0.94;
+        }
+        return;
+      }
+
+      // Tier 3: Large drift (> 3.0s) -> Rate-limited hard seek (at least 6s apart)
+      const now = Date.now();
+      if (absDiff > 3.0 && now - lastHardSeekTimeRef.current > 6000) {
+        console.log(`[Cinema Sync] Aligning major drift (${diff.toFixed(2)}s) to ${expected.toFixed(2)}s`);
+        lastHardSeekTimeRef.current = now;
+        video.currentTime = expected;
+        video.playbackRate = 1.0;
+      }
+    }, 2000);
+
+    return () => {
+      clearInterval(interval);
+      if (videoRef.current && videoRef.current.playbackRate !== 1.0) {
+        videoRef.current.playbackRate = 1.0;
+      }
+    };
   }, [remotePlayback, isHost]);
 
   // Host: Send periodic sync heartbeat so peers are tightly anchored to host's real position
@@ -803,9 +862,6 @@ export default function MoviePlayer({
             }}
             onWaiting={() => {
               setIsBuffering(true);
-              if (isHost && onSyncPlayback && videoRef.current && !videoRef.current.paused) {
-                onSyncPlayback('buffering', videoRef.current.currentTime);
-              }
             }}
             onPlaying={() => {
               setIsBuffering(false);

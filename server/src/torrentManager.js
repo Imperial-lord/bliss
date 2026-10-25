@@ -284,8 +284,14 @@ class TorrentManager {
     const session = this.roomSessions.get(roomId);
     if (session && session.torrent) {
       try {
-        session.torrent.destroy({ destroyStore: true });
-        console.log(`[Torrent] Destroyed torrent for room: ${roomId}`);
+        if (this.client && typeof this.client.remove === 'function') {
+          this.client.remove(session.torrent, { destroyStore: true }, (err) => {
+            if (err) console.warn(`[Torrent] Warning removing torrent: ${err.message}`);
+          });
+        } else {
+          session.torrent.destroy({ destroyStore: true });
+        }
+        console.log(`[Torrent] Cleanly removed torrent for room: ${roomId}`);
       } catch (e) {
         console.warn(`[Torrent] Error destroying torrent for room ${roomId}:`, e.message);
       }

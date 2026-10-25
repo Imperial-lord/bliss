@@ -91,6 +91,15 @@ const io = new Server(server, {
 
 setupSocketEvents(io);
 
+// Prevent third-party async timer or socket exceptions from crashing the process
+process.on('uncaughtException', (err) => {
+  console.error('[Process Uncaught Exception]:', err.message);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.warn('[Process Unhandled Rejection]:', reason);
+});
+
 server.listen(PORT, () => {
   console.log(`===============================================`);
   console.log(`🚀 Bliss Signaling Server running on port ${PORT}`);
