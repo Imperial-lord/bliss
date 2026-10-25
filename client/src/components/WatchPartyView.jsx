@@ -46,7 +46,9 @@ export default function WatchPartyView({
   const [mediaMessage, setMediaMessage] = useState('');
   const [subtitles, setSubtitles] = useState(initialMedia?.subtitles || []);
   const [hostErrorMessage, setHostErrorMessage] = useState('');
-  const [remotePlayback, setRemotePlayback] = useState(initialMedia?.playback || null);
+  const [remotePlayback, setRemotePlayback] = useState(
+    initialMedia?.playback ? { ...initialMedia.playback, receivedAt: Date.now() } : null
+  );
 
   // Keep live references to avoid stale closure in long-lived socket listeners (#12)
   const isHostRef = React.useRef(isHost);
@@ -62,7 +64,9 @@ export default function WatchPartyView({
       if (initialMedia.status) setMediaStatus(initialMedia.status);
       if (initialMedia.title) setMediaTitle(initialMedia.title);
       if (initialMedia.subtitles) setSubtitles(initialMedia.subtitles);
-      if (initialMedia.playback) setRemotePlayback(initialMedia.playback);
+      if (initialMedia.playback) {
+        setRemotePlayback({ ...initialMedia.playback, receivedAt: Date.now() });
+      }
     }
   }, [initialMedia]);
 
@@ -74,7 +78,7 @@ export default function WatchPartyView({
     // Explicitly request playback sync from server upon entering room (#1)
     socket.emit('request-playback-sync', { roomId }, (response) => {
       if (response?.playback) {
-        setRemotePlayback(response.playback);
+        setRemotePlayback({ ...response.playback, receivedAt: Date.now() });
       }
       if (response?.status) {
         setMediaStatus(response.status);
@@ -127,7 +131,10 @@ export default function WatchPartyView({
     };
 
     const handlePlaybackUpdated = (playbackData) => {
-      setRemotePlayback(playbackData);
+      setRemotePlayback({
+        ...playbackData,
+        receivedAt: Date.now()
+      });
     };
 
     socket.on('receive-chat', handleReceiveChat);

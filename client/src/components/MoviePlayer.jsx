@@ -277,19 +277,24 @@ export default function MoviePlayer({
   }, []);
 
   const lastHardSeekTimeRef = useRef(0);
+  const remotePlaybackReceivedAtRef = useRef(Date.now());
+  const lastRemotePlaybackRef = useRef(remotePlayback);
+
+  // Keep track of client timestamp when remotePlayback arrived
+  useEffect(() => {
+    if (remotePlayback !== lastRemotePlaybackRef.current) {
+      remotePlaybackReceivedAtRef.current = remotePlayback?.receivedAt || Date.now();
+      lastRemotePlaybackRef.current = remotePlayback;
+    }
+  }, [remotePlayback]);
 
   // Sync peer video with host authoritative remote playback
   useEffect(() => {
     if (isHost || !remotePlayback || !videoRef.current) return;
 
-    const { action, currentTime: targetTime, updatedAt, isPlaying: hostIsPlaying, serverTime } = remotePlayback;
+    const { action, currentTime: targetTime, updatedAt, isPlaying: hostIsPlaying } = remotePlayback;
     const effectiveAction = action || (hostIsPlaying ? 'play' : 'pause');
     const isEffectivePlaying = hostIsPlaying ?? (effectiveAction === 'play');
-
-    // Estimate clock offset between client Date.now() and server's timestamp
-    const serverNowRef = serverTime || updatedAt || Date.now();
-    const clockOffset = serverNowRef - Date.now();
-    const currentEstimatedServerNow = Date.now() + clockOffset;
 
     if (effectiveAction === 'seek') {
       // Explicit host seek
@@ -317,7 +322,8 @@ export default function MoviePlayer({
         lastHardSeekTimeRef.current = Date.now();
       }
     } else if (effectiveAction === 'play') {
-      const elapsed = Math.max(0, (currentEstimatedServerNow - updatedAt) / 1000);
+      const receivedAt = remotePlayback.receivedAt || remotePlaybackReceivedAtRef.current || Date.now();
+      const elapsed = Math.max(0, (Date.now() - receivedAt) / 1000);
       const expectedTime = targetTime + elapsed;
 
       // Only hard-seek on 'play' if drift is large (> 3.5s) to avoid canceling initial buffer
@@ -381,12 +387,9 @@ export default function MoviePlayer({
       // Do not interrupt when actively seeking or waiting on initial buffer chunks
       if (video.seeking || video.readyState < 3) return;
 
-      const serverNowRef = remotePlayback.serverTime || remotePlayback.updatedAt || Date.now();
-      const clockOffset = serverNowRef - Date.now();
-      const currentEstimatedServerNow = Date.now() + clockOffset;
-
-      const elapsed = Math.max(0, (currentEstimatedServerNow - remotePlayback.updatedAt) / 1000);
-      const expected = remotePlayback.currentTime + elapsed;
+      const receivedAt = remotePlayback.receivedAt || remotePlaybackReceivedAtRef.current || Date.now();
+      const elapsed = Math.max(0, (Date.now() - receivedAt) / 1000);
+      const expected = (remotePlayback.currentTime || 0) + elapsed;
       const diff = expected - video.currentTime; // Positive: peer is behind host. Negative: peer is ahead.
       const absDiff = Math.abs(diff);
 
@@ -431,16 +434,17 @@ export default function MoviePlayer({
 
   // Host: Send periodic sync heartbeat so peers are tightly anchored to host's real position
   useEffect(() => {
-    if (!isHost || !isPlaying || !videoRef.current || !onSyncPlayback) return;
+    if (!isHost || !onSyncPlayback) return;
 
     const interval = setInterval(() => {
-      if (videoRef.current && !videoRef.current.paused && !videoRef.current.seeking) {
-        onSyncPlayback('heartbeat', videoRef.current.currentTime);
+      const video = videoRef.current;
+      if (video && !video.paused && !video.seeking) {
+        onSyncPlayback('heartbeat', video.currentTime);
       }
     }, 4000);
 
     return () => clearInterval(interval);
-  }, [isHost, isPlaying, onSyncPlayback]);
+  }, [isHost, onSyncPlayback]);
 
   // Host: Toggle Play/Pause with async race protection
   const togglePlay = useCallback(async () => {
@@ -849,9 +853,18 @@ export default function MoviePlayer({
               setHasStartedPlayback(true);
             }}
             onPause={() => {
+              // Ignore transient browser pause triggered during seek/skip
+              if (videoRef.current && videoRef.current.seeking) {
+                return;
+              }
               setIsPlaying(false);
               if (isHost && onSyncPlayback && videoRef.current && !videoRef.current.ended) {
                 onSyncPlayback('pause', videoRef.current.currentTime);
+              }
+            }}
+            onSeeked={() => {
+              if (videoRef.current && !videoRef.current.paused) {
+                setIsPlaying(true);
               }
             }}
             onEnded={() => {
