@@ -6,7 +6,17 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "test": "node test-signaling.mjs && node test-torrent-streaming.mjs && node test-oci-storage.mjs",
+    "test": "node test/index.mjs",
+    "test:all": "node test/index.mjs",
+    "test:rooms": "node test/index.mjs --suite rooms",
+    "test:playback": "node test/index.mjs --suite playback",
+    "test:stream": "node test/index.mjs --suite stream",
+    "test:chat": "node test/index.mjs --suite chat",
+    "test:media": "node test/index.mjs --suite media",
+    "test:signaling": "node test/index.mjs --suite signaling",
+    "test:oci": "node test/index.mjs --suite oci",
+    "test:client": "node test/index.mjs --suite client",
+    "test:legacy": "node test-signaling.mjs && node test-torrent-streaming.mjs && node test-oci-storage.mjs",
     "test:e2e": "node test-live-e2e-streaming.mjs"
   },
   "dependencies": {
