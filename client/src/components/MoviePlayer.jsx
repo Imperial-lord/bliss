@@ -134,6 +134,7 @@ export default function MoviePlayer({
   const [isPipOpen, setIsPipOpen] = useState(true);
   const [hasStartedPlayback, setHasStartedPlayback] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
+  const [isReactionsOpen, setIsReactionsOpen] = useState(false);
   const [feedbackToast, setFeedbackToast] = useState(null);
   const [torrentInput, setTorrentInput] = useState('');
   const [isCueing, setIsCueing] = useState(false);
@@ -179,6 +180,8 @@ export default function MoviePlayer({
   const playPromiseRef = useRef(null);
   const controlsTimeoutRef = useRef(null);
   const feedbackTimeoutRef = useRef(null);
+  const reactionContainerRef = useRef(null);
+  const reactionsCloseTimerRef = useRef(null);
 
   // Auto-Ducking: Dynamically dims movie volume when remote peers speak to stop speaker bleed
   const { effectiveVolume, isDucked, activeSpeaker } = useAudioDucking({
@@ -273,11 +276,11 @@ export default function MoviePlayer({
     }
   }, [currentTime, cues, showSubtitles, currentCue]);
 
-  // Auto-hide control bar on idle during playback
+  // Auto-hide control bar on idle during playback (never auto-hide while picking reactions)
   const handleMouseMove = () => {
     setControlsVisible(true);
     if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
-    if (isPlaying) {
+    if (isPlaying && !isReactionsOpen) {
       controlsTimeoutRef.current = setTimeout(() => {
         setControlsVisible(false);
       }, 3500);
@@ -285,11 +288,37 @@ export default function MoviePlayer({
   };
 
   useEffect(() => {
-    if (!isPlaying) {
+    if (!isPlaying || isReactionsOpen) {
       setControlsVisible(true);
       if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+    } else if (isPlaying && !isReactionsOpen) {
+      if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+      controlsTimeoutRef.current = setTimeout(() => {
+        setControlsVisible(false);
+      }, 3500);
     }
-  }, [isPlaying]);
+  }, [isPlaying, isReactionsOpen]);
+
+  // Close reactions popover on outside pointerdown / touch
+  useEffect(() => {
+    if (!isReactionsOpen) return;
+    const handleOutsideClick = (e) => {
+      if (reactionContainerRef.current && !reactionContainerRef.current.contains(e.target)) {
+        setIsReactionsOpen(false);
+      }
+    };
+    document.addEventListener('pointerdown', handleOutsideClick);
+    return () => {
+      document.removeEventListener('pointerdown', handleOutsideClick);
+    };
+  }, [isReactionsOpen]);
+
+  // Reset reactions popover when exiting fullscreen
+  useEffect(() => {
+    if (!isFullscreen) {
+      setIsReactionsOpen(false);
+    }
+  }, [isFullscreen]);
 
   // Fullscreen container listener & handler
   useEffect(() => {
@@ -1268,27 +1297,63 @@ export default function MoviePlayer({
 
                 {/* Fullscreen Quick Reactions Trigger (Fullscreen only) */}
                 {isFullscreen && onSendReaction && (
-                  <div className="relative group/react">
+                  <div
+                    ref={reactionContainerRef}
+                    className="relative"
+                    onMouseEnter={() => {
+                      if (reactionsCloseTimerRef.current) clearTimeout(reactionsCloseTimerRef.current);
+                      setIsReactionsOpen(true);
+                    }}
+                    onMouseLeave={() => {
+                      if (reactionsCloseTimerRef.current) clearTimeout(reactionsCloseTimerRef.current);
+                      reactionsCloseTimerRef.current = setTimeout(() => {
+                        setIsReactionsOpen(false);
+                      }, 700);
+                    }}
+                  >
                     <button
                       type="button"
-                      className="p-1.5 hover:text-[#ff7a00] text-white/80 hover:text-white transition-colors cursor-pointer active:scale-90"
-                      title="Send Floating Reaction"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (reactionsCloseTimerRef.current) clearTimeout(reactionsCloseTimerRef.current);
+                        setIsReactionsOpen((prev) => !prev);
+                      }}
+                      className={`p-1.5 transition-colors cursor-pointer active:scale-90 ${
+                        isReactionsOpen
+                          ? 'text-[#ff7a00]'
+                          : 'text-white/80 hover:text-white hover:text-[#ff7a00]'
+                      }`}
+                      title={isReactionsOpen ? 'Close Reactions' : 'Send Floating Reaction'}
+                      aria-label="Send Floating Reaction"
+                      aria-expanded={isReactionsOpen}
                     >
                       <Smile className="w-5 h-5" />
                     </button>
-                    <div className="absolute bottom-full mb-3 right-0 hidden group-hover/react:flex items-center gap-1.5 bg-[#12171c]/95 border border-white/15 px-3 py-2 rounded-2xl shadow-2xl backdrop-blur-xl whitespace-nowrap flex-nowrap z-50 pointer-events-auto animate-fade-in">
-                      {['🔥', '❤️', '😂', '🍿', '👏', '😱'].map((emoji) => (
-                        <button
-                          key={emoji}
-                          type="button"
-                          onClick={() => onSendReaction(emoji)}
-                          className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/15 flex items-center justify-center text-base transition-transform hover:scale-125 active:scale-90 cursor-pointer shrink-0"
-                          title={`Send ${emoji}`}
-                        >
-                          {emoji}
-                        </button>
-                      ))}
-                    </div>
+
+                    {isReactionsOpen && (
+                      <div
+                        onMouseEnter={() => {
+                          if (reactionsCloseTimerRef.current) clearTimeout(reactionsCloseTimerRef.current);
+                        }}
+                        className="absolute bottom-[calc(100%+8px)] right-0 flex items-center gap-1.5 bg-[#12171c]/95 border border-white/15 px-3 py-2 rounded-2xl shadow-2xl backdrop-blur-xl whitespace-nowrap flex-nowrap z-50 pointer-events-auto animate-fade-in after:absolute after:-bottom-3 after:left-0 after:right-0 after:h-4 after:content-['']"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {['🔥', '❤️', '😂', '🍿', '👏', '😱'].map((emoji) => (
+                          <button
+                            key={emoji}
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onSendReaction(emoji);
+                            }}
+                            className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/15 flex items-center justify-center text-base transition-transform hover:scale-125 active:scale-90 cursor-pointer shrink-0"
+                            title={`Send ${emoji}`}
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
 

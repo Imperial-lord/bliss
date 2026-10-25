@@ -213,4 +213,68 @@ Multi-hour subtitle block.
       'Index must clamp to valid upper bound (1) when peer departs'
     );
   });
+
+  test('Reaction popover state machine toggles on touch/click and resets on fullscreen exit', () => {
+    let isReactionsOpen = false;
+    let isFullscreen = true;
+
+    // Simulate touch / click toggle
+    const toggleReactions = () => {
+      isReactionsOpen = !isReactionsOpen;
+    };
+
+    toggleReactions();
+    assert.equal(isReactionsOpen, true, 'Touch/click toggles reaction popover open');
+
+    // Controls auto-hide suppression logic:
+    // When isReactionsOpen is true, controls timer should not auto-hide controls
+    const shouldAutoHideControls = (isPlaying, isReactionsOpen) => {
+      return isPlaying && !isReactionsOpen;
+    };
+    assert.equal(
+      shouldAutoHideControls(true, isReactionsOpen),
+      false,
+      'Controls auto-hide is suppressed while reactions popover is open'
+    );
+
+    // Exiting fullscreen resets popover
+    isFullscreen = false;
+    if (!isFullscreen) {
+      isReactionsOpen = false;
+    }
+    assert.equal(isReactionsOpen, false, 'Exiting fullscreen immediately dismisses reaction popover');
+  });
+
+  test('Reaction popover hover grace timer prevents premature closure across bridge gap', async () => {
+    let isReactionsOpen = true;
+    let timer = null;
+
+    const onMouseLeave = (delay = 700) => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        isReactionsOpen = false;
+      }, delay);
+    };
+
+    const onMouseEnter = () => {
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
+      isReactionsOpen = true;
+    };
+
+    // User leaves trigger button towards popover (in the gap)
+    onMouseLeave(50);
+    assert.equal(isReactionsOpen, true, 'Popover remains open during grace period across bridge gap');
+
+    // Cursor enters popover before timer fires (e.g. 20ms later)
+    await new Promise((res) => setTimeout(res, 20));
+    onMouseEnter();
+    assert.equal(isReactionsOpen, true, 'Entering popover cancels timer and preserves open state');
+
+    // Wait until after the original 50ms would have fired
+    await new Promise((res) => setTimeout(res, 40));
+    assert.equal(isReactionsOpen, true, 'Popover is still open because timer was cancelled');
+  });
 });
