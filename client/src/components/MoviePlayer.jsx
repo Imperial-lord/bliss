@@ -1266,8 +1266,8 @@ export default function MoviePlayer({
                   {isHost ? 'Host Controls Active' : 'Synced With Host'}
                 </span>
 
-                {/* Fullscreen Quick Reactions Trigger */}
-                {onSendReaction && (
+                {/* Fullscreen Quick Reactions Trigger (Fullscreen only) */}
+                {isFullscreen && onSendReaction && (
                   <div className="relative group/react">
                     <button
                       type="button"
@@ -1276,13 +1276,13 @@ export default function MoviePlayer({
                     >
                       <Smile className="w-5 h-5" />
                     </button>
-                    <div className="absolute bottom-full mb-3 right-0 sm:left-1/2 sm:-translate-x-1/2 hidden group-hover/react:flex items-center gap-1.5 bg-[#12171c]/95 border border-white/15 px-2.5 py-1.5 rounded-full shadow-2xl backdrop-blur-xl animate-fade-in pointer-events-auto z-50">
+                    <div className="absolute bottom-full mb-3 right-0 hidden group-hover/react:flex items-center gap-1.5 bg-[#12171c]/95 border border-white/15 px-3 py-2 rounded-2xl shadow-2xl backdrop-blur-xl whitespace-nowrap flex-nowrap z-50 pointer-events-auto animate-fade-in">
                       {['🔥', '❤️', '😂', '🍿', '👏', '😱'].map((emoji) => (
                         <button
                           key={emoji}
                           type="button"
                           onClick={() => onSendReaction(emoji)}
-                          className="w-7 h-7 rounded-full hover:bg-white/10 flex items-center justify-center text-sm transition-transform hover:scale-125 active:scale-90 cursor-pointer"
+                          className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/15 flex items-center justify-center text-base transition-transform hover:scale-125 active:scale-90 cursor-pointer shrink-0"
                           title={`Send ${emoji}`}
                         >
                           {emoji}

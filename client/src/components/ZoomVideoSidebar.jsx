@@ -224,17 +224,18 @@ export default function ZoomVideoSidebar({
         )}
       </div>
 
-      {/* Floating Emoji Reactions Bar (Teleport Style) */}
-      <div className="p-3 bg-slate-50 dark:bg-[#080d10] border-t border-slate-200/80 dark:border-white/5 flex items-center justify-between shrink-0">
-        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-[#9aa6af]">
+      {/* Floating Emoji Reactions Bar */}
+      <div className="px-4 py-3 bg-slate-50 dark:bg-[#080d10] border-t border-slate-200/80 dark:border-white/5 flex items-center justify-between gap-3 shrink-0">
+        <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-[#9aa6af] shrink-0">
           React
         </span>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-2 sm:gap-2.5 overflow-x-auto py-0.5">
           {reactions.map((emoji) => (
             <button
               key={emoji}
+              type="button"
               onClick={() => onSendReaction(emoji)}
-              className="w-8 h-8 rounded-full bg-white dark:bg-[#141a1f] hover:bg-slate-100 dark:hover:bg-[#1b2229] border border-slate-200/80 dark:border-white/5 hover:border-orange-500/40 dark:hover:border-[#ff7a00]/40 flex items-center justify-center text-sm transition-transform active:scale-125 hover:scale-110 shadow-sm"
+              className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-white dark:bg-[#141a1f] hover:bg-orange-500/10 dark:hover:bg-[#ff7a00]/15 border border-slate-200/80 dark:border-white/10 hover:border-orange-500/40 dark:hover:border-[#ff7a00]/50 flex items-center justify-center text-xl sm:text-2xl transition-all active:scale-90 hover:scale-115 shadow-sm hover:shadow-md cursor-pointer select-none shrink-0"
               title={`Send ${emoji}`}
             >
               {emoji}
