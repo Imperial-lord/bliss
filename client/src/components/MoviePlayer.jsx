@@ -19,8 +19,10 @@ import {
   Lock,
   Clock,
   Tv,
-  Headphones
+  Headphones,
+  Smile
 } from 'lucide-react';
+import CinemaPipWidget from './CinemaPipWidget';
 import { SERVER_URL } from '../config/webrtc';
 import { useAudioDucking } from '../hooks/useAudioDucking';
 
@@ -107,7 +109,14 @@ export default function MoviePlayer({
   reactions = [],
   onCueMovie,
   onSyncPlayback,
-  remotePlayback = null
+  remotePlayback = null,
+  localStream = null,
+  isAudioEnabled = true,
+  isVideoEnabled = true,
+  userName = 'You',
+  currentUser = null,
+  speakingPeers = {},
+  onSendReaction = null
 }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isBuffering, setIsBuffering] = useState(false);
@@ -122,12 +131,48 @@ export default function MoviePlayer({
   const [cues, setCues] = useState([]);
   const [currentCue, setCurrentCue] = useState('');
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isPipOpen, setIsPipOpen] = useState(true);
   const [hasStartedPlayback, setHasStartedPlayback] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
   const [feedbackToast, setFeedbackToast] = useState(null);
   const [torrentInput, setTorrentInput] = useState('');
   const [isCueing, setIsCueing] = useState(false);
   const [showCueModal, setShowCueModal] = useState(false);
+
+  // Combine self and remote peers into consolidated video feeds for Fullscreen PiP
+  const pipFeeds = React.useMemo(() => {
+    const list = [];
+    list.push({
+      id: 'self',
+      socketId: 'self',
+      userName,
+      displayName: `${userName} (You)`,
+      avatarId: currentUser?.avatarId || 'cyber-rebel',
+      stream: localStream,
+      isAudioEnabled,
+      isVideoEnabled,
+      isSpeaking: isAudioEnabled,
+      isLocal: true
+    });
+
+    if (Array.isArray(peers)) {
+      peers.forEach((peer, idx) => {
+        list.push({
+          id: peer.socketId || `peer_${idx}`,
+          socketId: peer.socketId,
+          userName: peer.userName || `Viewer ${idx + 1}`,
+          displayName: peer.userName || `Viewer ${idx + 1}`,
+          avatarId: peer.avatarId || (idx % 2 === 0 ? 'star-voyager' : 'popcorn-fanatic'),
+          stream: peer.stream,
+          isAudioEnabled: peer.audioEnabled ?? true,
+          isVideoEnabled: peer.videoEnabled ?? true,
+          isSpeaking: Boolean(speakingPeers && speakingPeers[peer.socketId]),
+          isLocal: false
+        });
+      });
+    }
+    return list;
+  }, [userName, currentUser, localStream, isAudioEnabled, isVideoEnabled, peers, speakingPeers]);
 
   const containerRef = useRef(null);
   const videoRef = useRef(null);
@@ -633,6 +678,17 @@ export default function MoviePlayer({
         });
         return;
       }
+
+      // 'p': Toggle Fullscreen Video Picture-in-Picture
+      if (e.key.toLowerCase() === 'p') {
+        e.preventDefault();
+        setIsPipOpen((prev) => !prev);
+        triggerToast({
+          type: 'volume',
+          text: !isPipOpen ? 'Video PiP Enabled' : 'Video PiP Hidden'
+        });
+        return;
+      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -646,7 +702,8 @@ export default function MoviePlayer({
     adjustVolume,
     toggleMute,
     handleFullscreen,
-    triggerToast
+    triggerToast,
+    isPipOpen
   ]);
 
   const handleTimeUpdate = () => {
@@ -1209,6 +1266,48 @@ export default function MoviePlayer({
                   {isHost ? 'Host Controls Active' : 'Synced With Host'}
                 </span>
 
+                {/* Fullscreen Quick Reactions Trigger */}
+                {onSendReaction && (
+                  <div className="relative group/react">
+                    <button
+                      type="button"
+                      className="p-1.5 hover:text-[#ff7a00] text-white/80 hover:text-white transition-colors cursor-pointer active:scale-90"
+                      title="Send Floating Reaction"
+                    >
+                      <Smile className="w-5 h-5" />
+                    </button>
+                    <div className="absolute bottom-full mb-3 right-0 sm:left-1/2 sm:-translate-x-1/2 hidden group-hover/react:flex items-center gap-1.5 bg-[#12171c]/95 border border-white/15 px-2.5 py-1.5 rounded-full shadow-2xl backdrop-blur-xl animate-fade-in pointer-events-auto z-50">
+                      {['🔥', '❤️', '😂', '🍿', '👏', '😱'].map((emoji) => (
+                        <button
+                          key={emoji}
+                          type="button"
+                          onClick={() => onSendReaction(emoji)}
+                          className="w-7 h-7 rounded-full hover:bg-white/10 flex items-center justify-center text-sm transition-transform hover:scale-125 active:scale-90 cursor-pointer"
+                          title={`Send ${emoji}`}
+                        >
+                          {emoji}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Fullscreen Video PiP Toggle */}
+                {isFullscreen && (
+                  <button
+                    type="button"
+                    onClick={() => setIsPipOpen((prev) => !prev)}
+                    className={`p-1.5 transition-colors cursor-pointer active:scale-90 ${
+                      isPipOpen
+                        ? 'text-[#ff7a00] hover:text-[#ff9e3b]'
+                        : 'text-white/70 hover:text-white'
+                    }`}
+                    title={isPipOpen ? 'Hide Video PiP (P)' : 'Show Video PiP (P)'}
+                  >
+                    <Tv className="w-5 h-5" />
+                  </button>
+                )}
+
                 <button
                   onClick={handleFullscreen}
                   className="p-1.5 hover:text-[#ff7a00] text-white transition-colors cursor-pointer active:scale-90"
@@ -1233,16 +1332,34 @@ export default function MoviePlayer({
         {reactions.map((r) => (
           <div
             key={r.id}
-            className="absolute bottom-20 right-12 animate-float-reaction flex items-center gap-1.5 bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 shadow-glow-orange"
+            className="absolute bottom-24 animate-float-reaction flex items-center gap-2 bg-black/75 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-white/15 shadow-2xl shadow-black/60 select-none pointer-events-none"
             style={{
-              right: `${Math.min(75, 10 + Math.random() * 60)}%`
+              left: `${r.xOffset ?? 50}%`,
+              transform: 'translateX(-50%)'
             }}
           >
-            <span className="text-2xl animate-bounce">{r.emoji}</span>
-            <span className="text-[11px] font-bold text-white">{r.senderName}</span>
+            <span className="text-2xl leading-none select-none">{r.emoji}</span>
+            {r.senderName && (
+              <span className="text-xs font-semibold text-white/95 max-w-[120px] truncate">
+                {r.senderName}
+              </span>
+            )}
           </div>
         ))}
       </div>
+
+      {/* ========================================================================= */}
+      {/* FULLSCREEN PICTURE-IN-PICTURE (PIP) FLOATING VIDEO WIDGET */}
+      {/* ========================================================================= */}
+      {isFullscreen && isPipOpen && (
+        <CinemaPipWidget
+          feeds={pipFeeds}
+          containerRef={containerRef}
+          isOpen={isPipOpen}
+          onClose={() => setIsPipOpen(false)}
+          initialFeedIndex={peers.length > 0 ? 1 : 0}
+        />
+      )}
 
       {/* ========================================================================= */}
       {/* HOST CHANGE MOVIE MODAL */}

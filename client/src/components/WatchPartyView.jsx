@@ -96,10 +96,13 @@ export default function WatchPartyView({
     };
 
     const handleReceiveReaction = (react) => {
-      setActiveReactions((prev) => [...prev, react]);
+      setActiveReactions((prev) => {
+        if (prev.some((r) => r.id === react.id)) return prev;
+        return [...prev.slice(-14), react];
+      });
       setTimeout(() => {
         setActiveReactions((prev) => prev.filter((r) => r.id !== react.id));
-      }, 3500);
+      }, 2800);
     };
 
     // Cinema Streaming Socket Handlers
@@ -197,23 +200,30 @@ export default function WatchPartyView({
   };
 
   const handleSendReaction = (emoji) => {
+    const reactionId = `react_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const xOffset = Math.floor(15 + Math.random() * 70); // stable horizontal slot (15% to 85%)
     const socket = getSocket();
     if (socket && socket.connected) {
       socket.emit('send-reaction', {
         roomId,
+        id: reactionId,
         emoji,
-        senderName: userName
+        senderName: userName,
+        xOffset
       });
+    } else {
+      // Local fallback only when disconnected
+      const localReact = {
+        id: reactionId,
+        emoji,
+        senderName: userName,
+        xOffset
+      };
+      setActiveReactions((prev) => [...prev, localReact]);
+      setTimeout(() => {
+        setActiveReactions((prev) => prev.filter((r) => r.id !== localReact.id));
+      }, 2800);
     }
-    const localReact = {
-      id: `local_react_${Date.now()}`,
-      emoji,
-      senderName: userName
-    };
-    setActiveReactions((prev) => [...prev, localReact]);
-    setTimeout(() => {
-      setActiveReactions((prev) => prev.filter((r) => r.id !== localReact.id));
-    }, 3500);
   };
 
   const totalParticipants = peers.length + 1;
@@ -298,6 +308,13 @@ export default function WatchPartyView({
               onCueMovie={handleCueMovie}
               onSyncPlayback={handleSyncPlayback}
               remotePlayback={remotePlayback}
+              localStream={localStream}
+              isAudioEnabled={isAudioEnabled}
+              isVideoEnabled={isVideoEnabled}
+              userName={userName}
+              currentUser={currentUser}
+              speakingPeers={speakingPeers}
+              onSendReaction={handleSendReaction}
             />
           </div>
 

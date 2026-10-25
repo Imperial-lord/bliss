@@ -21,14 +21,15 @@ export function registerChatHandlers(io, socket) {
   });
 
   // Real-time floating emoji reaction
-  socket.on('send-reaction', ({ roomId, emoji, senderName }) => {
+  socket.on('send-reaction', ({ roomId, id, emoji, senderName, xOffset }) => {
     if (!roomId || !emoji) return;
     const cleanRoomId = String(roomId).trim();
     io.to(`room:${cleanRoomId}`).emit('receive-reaction', {
-      id: `react_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      id: id || `react_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       emoji,
       senderName: senderName || 'Someone',
-      senderId: socket.id
+      senderId: socket.id,
+      xOffset: typeof xOffset === 'number' ? xOffset : Math.floor(15 + Math.random() * 70)
     });
   });
 }

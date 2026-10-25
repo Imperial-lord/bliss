@@ -21,8 +21,14 @@ async function runSelfContainedTest() {
   const client1 = io(SERVER_URL, { transports: ['websocket'] });
   const client2 = io(SERVER_URL, { transports: ['websocket'] });
 
-  await new Promise((resolve) => client1.on('connect', resolve));
-  await new Promise((resolve) => client2.on('connect', resolve));
+  await new Promise((resolve) => {
+    if (client1.connected) resolve();
+    else client1.once('connect', resolve);
+  });
+  await new Promise((resolve) => {
+    if (client2.connected) resolve();
+    else client2.once('connect', resolve);
+  });
   console.log('✓ Both clients connected successfully.');
 
   const roomId = 'phenomenon-room';
@@ -131,7 +137,10 @@ async function runSelfContainedTest() {
   // 4. Test multi-tab takeover & host retention
   console.log('Testing multi-tab session transfer for Alice (host)...');
   const clientAliceTab2 = io(SERVER_URL, { transports: ['websocket'] });
-  await new Promise((resolve) => clientAliceTab2.on('connect', resolve));
+  await new Promise((resolve) => {
+    if (clientAliceTab2.connected) resolve();
+    else clientAliceTab2.once('connect', resolve);
+  });
 
   const sessionTransferredPromise = new Promise((resolve) => {
     client1.on('session-transferred', resolve);
@@ -165,6 +174,28 @@ async function runSelfContainedTest() {
     throw new Error('Tab 2 peer list includes old superseded session or incorrect peers: ' + JSON.stringify(joinAliceTab2.peers));
   }
   console.log('✓ Duplicate self-peer eliminated from active peer list.');
+
+  // 5. Test real-time floating emoji reaction delivery with stable slot and id
+  const reactionPromise = new Promise((resolve) => {
+    client2.on('receive-reaction', resolve);
+  });
+  clientAliceTab2.emit('send-reaction', {
+    roomId,
+    id: 'test_react_abc_123',
+    emoji: '🔥',
+    senderName: 'Alice',
+    xOffset: 42
+  });
+  const receivedReaction = await reactionPromise;
+  if (
+    receivedReaction.id !== 'test_react_abc_123' ||
+    receivedReaction.emoji !== '🔥' ||
+    receivedReaction.senderName !== 'Alice' ||
+    receivedReaction.xOffset !== 42
+  ) {
+    throw new Error('Reaction delivery payload mismatch: ' + JSON.stringify(receivedReaction));
+  }
+  console.log('✓ Floating emoji reaction relayed with stable offset and deduplication id.');
 
   clientAliceTab2.disconnect();
   client1.disconnect();
